@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -36,6 +37,7 @@ class AppPrefs(private val context: Context) {
         val RECENTS = stringPreferencesKey("recent_channels_json")
         val REFRESH_INTERVAL_HOURS = intPreferencesKey("refresh_interval_hours")
         val LAST_AUTO_REFRESH = stringPreferencesKey("last_auto_refresh")
+        val PREMIUM_UNTIL_MS = longPreferencesKey("premium_until_ms")
     }
 
     val playlistSources: Flow<List<PlaylistSource>> = context.dataStore.data.map { prefs ->
@@ -86,6 +88,11 @@ class AppPrefs(private val context: Context) {
         it[Keys.LAST_AUTO_REFRESH].orEmpty()
     }
 
+    /** Epoch-millis until which premium features (recording) are unlocked. */
+    val premiumUntil: Flow<Long> = context.dataStore.data.map {
+        it[Keys.PREMIUM_UNTIL_MS] ?: 0L
+    }
+
     suspend fun setMovieCatalogUrl(url: String) =
         update(Keys.MOVIE_CATALOG_URL, url.trim())
 
@@ -98,6 +105,20 @@ class AppPrefs(private val context: Context) {
 
     suspend fun setLastAutoRefresh(stamp: String) =
         update(Keys.LAST_AUTO_REFRESH, stamp)
+
+    /**
+     * Extend the premium-unlock window by [durationMs] from now (or from
+     * the existing `premiumUntil` if it's still in the future, so two
+     * back-to-back ad watches stack rather than overwrite).
+     */
+    suspend fun extendPremium(durationMs: Long) {
+        context.dataStore.edit { prefs ->
+            val now = System.currentTimeMillis()
+            val current = prefs[Keys.PREMIUM_UNTIL_MS] ?: 0L
+            val base = if (current > now) current else now
+            prefs[Keys.PREMIUM_UNTIL_MS] = base + durationMs
+        }
+    }
 
     suspend fun upsertPlaylistSource(source: PlaylistSource) {
         val current = playlistSources.first().toMutableList()

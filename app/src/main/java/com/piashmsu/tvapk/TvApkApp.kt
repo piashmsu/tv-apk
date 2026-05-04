@@ -20,6 +20,11 @@ class TvApkApp : Application() {
         instance = this
         container = AppContainer(this)
 
+        // Initialise AdMob early so the first ad load is fast, and preload
+        // a rewarded ad in the background.
+        container.rewardedAds.initialiseOnce()
+        container.rewardedAds.preload()
+
         appScope.launch {
             // Apply the user-configured periodic refresh, if any.
             val interval = container.prefs.refreshInterval.first()

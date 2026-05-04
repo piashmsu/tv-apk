@@ -180,6 +180,8 @@ fun SettingsScreen() {
             }
         }
 
+        item { PremiumCard() }
+
         item {
             Card("About") {
                 AboutRow("App", "TV APK • v2.0")
@@ -509,6 +511,31 @@ private fun AboutRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Text(label, color = Color(0xAABFC4D6), modifier = Modifier.weight(1f))
         Text(value, color = Color.White)
+    }
+}
+
+@Composable
+private fun PremiumCard() {
+    val vm: AppViewModel = viewModel(factory = AppViewModel.Factory)
+    val premiumUntil by vm.premiumUntil.collectAsState()
+    val now = System.currentTimeMillis()
+    val isPremium = premiumUntil > now
+    val minsLeft = if (isPremium) ((premiumUntil - now) / 60_000).coerceAtLeast(0) else 0L
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    Card("Premium recording") {
+        Text(
+            if (isPremium) "Premium unlocked: ${minsLeft}m left."
+            else "Live-TV recording is locked. Watch a short ad to unlock recording for the next 30 minutes.",
+            color = if (isPremium) Color(0xFFFFD27A) else Color(0xCCBFC4D6),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(Modifier.height(10.dp))
+        PrimaryButton(text = if (isPremium) "Watch ad to extend +30 min" else "Watch ad to unlock") {
+            val activity = context as? android.app.Activity ?: return@PrimaryButton
+            val shown = vm.showRewardedAd(activity)
+            if (!shown) vm.preloadRewardedAd()
+        }
     }
 }
 
