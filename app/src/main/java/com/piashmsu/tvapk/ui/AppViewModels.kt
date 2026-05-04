@@ -98,10 +98,18 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { prefs.pushRecent(entry) }
     }
 
-    fun refreshChannels() { viewModelScope.launch { channelRepo.refresh() } }
-    fun refreshMovies() { viewModelScope.launch { movieRepo.refresh() } }
-    fun refreshEpg() { viewModelScope.launch { epgRepo.refresh() } }
-    fun probeChannels() { viewModelScope.launch { channelRepo.probeReachability() } }
+    fun refreshChannels() {
+        viewModelScope.launch { runCatching { channelRepo.refresh() } }
+    }
+    fun refreshMovies() {
+        viewModelScope.launch { runCatching { movieRepo.refresh() } }
+    }
+    fun refreshEpg() {
+        viewModelScope.launch { runCatching { epgRepo.refresh() } }
+    }
+    fun probeChannels() {
+        viewModelScope.launch { runCatching { channelRepo.probeReachability() } }
+    }
 
     companion object {
         val Factory = object : ViewModelProvider.Factory {

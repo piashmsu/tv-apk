@@ -8,15 +8,20 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.flow.flatMapMerge
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Loads and merges channels from every enabled [PlaylistSource]. Sources are
@@ -47,11 +52,19 @@ class ChannelRepository(
     val probeProgress: StateFlow<ProbeProgress> = _probeProgress.asStateFlow()
 
     private val probeClient: OkHttpClient = http.newBuilder()
+        .cache(null)
+        .dispatcher(
+            Dispatcher().apply {
+                maxRequests = 16
+                maxRequestsPerHost = 4
+            },
+        )
         .connectTimeout(4, TimeUnit.SECONDS)
         .readTimeout(4, TimeUnit.SECONDS)
-        .callTimeout(5, TimeUnit.SECONDS)
+        .callTimeout(6, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
+        .retryOnConnectionFailure(false)
         .build()
 
     suspend fun refresh(): Result<Int> = withContext(Dispatchers.IO) {
@@ -82,12 +95,18 @@ class ChannelRepository(
     }
 
     /**
-     * Probe the reachability of every loaded channel by issuing a short HEAD
-     * (falling back to a one-byte ranged GET) request and recording the
-     * outcome. Status is kept in memory only — refresh clears it.
+     * Probe the reachability of every loaded channel. Each channel is checked
+     * with a short HEAD (falling back to a 1-byte ranged GET) — outcomes are
+     * recorded on a [ConcurrentHashMap] so concurrent writes are safe, and
+     * progress / partial results are pushed to [_statuses] / [_probeProgress]
+     * in batches.
      *
-     * Probing is capped at 24 concurrent requests with a 5 s timeout each.
+     * Concurrency is capped both at the coroutine layer ([flatMapMerge]) and
+     * at the OkHttp dispatcher to stop the device's network stack from being
+     * flooded — earlier versions used an unbounded HashMap + 24 parallel
+     * coroutines and could crash on large playlists.
      */
+    @Suppress("OPT_IN_USAGE")
     suspend fun probeReachability() = withContext(Dispatchers.IO) {
         val list = _channels.value
         if (list.isEmpty()) {
@@ -96,24 +115,27 @@ class ChannelRepository(
         }
         val total = list.size
         _probeProgress.value = ProbeProgress.Running(0, total)
-        val sem = Semaphore(24)
-        val results = HashMap<String, ChannelStatus>(total)
-        var done = 0
-        coroutineScope {
-            list.map { ch ->
-                async {
-                    sem.withPermit { results[ch.id] = probeOne(ch) }
-                    synchronized(this@ChannelRepository) {
-                        done += 1
-                        _probeProgress.value = ProbeProgress.Running(done, total)
-                        if (done % 32 == 0 || done == total) {
-                            _statuses.value = HashMap(results)
-                        }
-                    }
+        val results = ConcurrentHashMap<String, ChannelStatus>(total)
+        val done = AtomicInteger(0)
+
+        list.asFlow()
+            .flatMapMerge(concurrency = 12) { ch ->
+                flow {
+                    val status = runCatching { probeOne(ch) }
+                        .getOrDefault(ChannelStatus.Offline)
+                    emit(ch.id to status)
+                }.flowOn(Dispatchers.IO)
+            }
+            .collect { (id, status) ->
+                results[id] = status
+                val n = done.incrementAndGet()
+                _probeProgress.value = ProbeProgress.Running(n, total)
+                if (n % 64 == 0 || n == total) {
+                    _statuses.value = HashMap(results)
                 }
-            }.awaitAll()
-        }
-        _statuses.value = results
+            }
+
+        _statuses.value = HashMap(results)
         val online = results.count { it.value == ChannelStatus.Online }
         val offline = results.count { it.value == ChannelStatus.Offline }
         _probeProgress.value = ProbeProgress.Finished(online, offline, total)
@@ -126,28 +148,37 @@ class ChannelRepository(
         if (raw.startsWith("content://", true) || raw.startsWith("file://", true) || raw.startsWith("/")) {
             return ChannelStatus.Online
         }
-        return runCatching {
+        return try {
             val builder = Request.Builder().url(raw).head()
             builder.header("User-Agent", channel.httpUserAgent ?: "TVApk/1.0")
             channel.httpReferer?.let { builder.header("Referer", it) }
             for ((k, v) in channel.httpHeaders) builder.header(k, v)
             probeClient.newCall(builder.build()).execute().use { resp ->
-                if (resp.isSuccessful) return ChannelStatus.Online
-                if (resp.code == 405 || resp.code == 501) probeRange(channel) else ChannelStatus.Offline
+                when {
+                    resp.isSuccessful -> ChannelStatus.Online
+                    resp.code == 405 || resp.code == 501 -> probeRange(channel)
+                    else -> ChannelStatus.Offline
+                }
             }
-        }.getOrElse {
-            runCatching { probeRange(channel) }.getOrDefault(ChannelStatus.Offline)
+        } catch (_: IllegalArgumentException) {
+            ChannelStatus.Offline
+        } catch (_: Throwable) {
+            try { probeRange(channel) } catch (_: Throwable) { ChannelStatus.Offline }
         }
     }
 
     private fun probeRange(channel: Channel): ChannelStatus {
-        val builder = Request.Builder().url(channel.streamUrl)
-            .header("Range", "bytes=0-0")
-            .header("User-Agent", channel.httpUserAgent ?: "TVApk/1.0")
-        channel.httpReferer?.let { builder.header("Referer", it) }
-        for ((k, v) in channel.httpHeaders) builder.header(k, v)
-        return probeClient.newCall(builder.build()).execute().use { resp ->
-            if (resp.isSuccessful) ChannelStatus.Online else ChannelStatus.Offline
+        return try {
+            val builder = Request.Builder().url(channel.streamUrl)
+                .header("Range", "bytes=0-0")
+                .header("User-Agent", channel.httpUserAgent ?: "TVApk/1.0")
+            channel.httpReferer?.let { builder.header("Referer", it) }
+            for ((k, v) in channel.httpHeaders) builder.header(k, v)
+            probeClient.newCall(builder.build()).execute().use { resp ->
+                if (resp.isSuccessful) ChannelStatus.Online else ChannelStatus.Offline
+            }
+        } catch (_: Throwable) {
+            ChannelStatus.Offline
         }
     }
 
