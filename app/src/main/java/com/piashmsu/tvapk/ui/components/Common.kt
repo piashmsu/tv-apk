@@ -14,11 +14,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.LiveTv
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
@@ -52,10 +55,13 @@ fun ChannelTile(
     group: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isFavorite: Boolean = false,
+    nowPlayingTitle: String? = null,
+    onFavorite: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
-            .width(132.dp)
+            .width(140.dp)
             .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
             .padding(6.dp),
@@ -92,6 +98,7 @@ fun ChannelTile(
                     modifier = Modifier.size(40.dp),
                 )
             }
+
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -101,6 +108,25 @@ fun ChannelTile(
                     .padding(horizontal = 6.dp, vertical = 2.dp),
             ) {
                 Text("LIVE", style = MaterialTheme.typography.labelMedium, color = Color.White)
+            }
+
+            if (onFavorite != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x99000000))
+                        .clickable(onClick = onFavorite)
+                        .padding(4.dp),
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                        contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                        tint = if (isFavorite) MaterialTheme.colorScheme.tertiary else Color.White,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
         }
         Spacer(Modifier.height(6.dp))
@@ -112,8 +138,9 @@ fun ChannelTile(
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            group,
-            color = Color(0xAABFC4D6),
+            nowPlayingTitle?.let { "● $it" } ?: group,
+            color = if (nowPlayingTitle != null) MaterialTheme.colorScheme.secondary
+                    else Color(0xAABFC4D6),
             style = MaterialTheme.typography.labelMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

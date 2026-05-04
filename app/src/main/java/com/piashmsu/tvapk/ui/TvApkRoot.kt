@@ -32,13 +32,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.piashmsu.tvapk.data.Channel
 import com.piashmsu.tvapk.data.Movie
+import com.piashmsu.tvapk.data.PlaybackTarget
+import com.piashmsu.tvapk.data.PlaybackTargetHolder
 import com.piashmsu.tvapk.ui.screens.HomeScreen
 import com.piashmsu.tvapk.ui.screens.LiveTvScreen
 import com.piashmsu.tvapk.ui.screens.MoviesScreen
 import com.piashmsu.tvapk.ui.screens.PlayerScreen
 import com.piashmsu.tvapk.ui.screens.SearchScreen
 import com.piashmsu.tvapk.ui.screens.SettingsScreen
-import java.net.URLEncoder
 
 private sealed class Tab(val route: String, val title: String, val icon: ImageVector) {
     data object Home : Tab("home", "Home", Icons.Outlined.Home)
@@ -53,8 +54,14 @@ private val tabs = listOf(Tab.Home, Tab.Live, Tab.Movies, Tab.Search, Tab.Settin
 @Composable
 fun TvApkRoot() {
     val nav = rememberNavController()
-    val openChannel: (Channel) -> Unit = { ch -> nav.openPlayer(ch.name, ch.streamUrl, ch.logo) }
-    val openMovie: (Movie) -> Unit = { m -> nav.openPlayer(m.title, m.streamUrl, m.poster) }
+    val openChannel: (Channel) -> Unit = { ch ->
+        PlaybackTargetHolder.current.value = PlaybackTarget.LiveChannel(ch)
+        nav.openPlayer()
+    }
+    val openMovie: (Movie) -> Unit = { m ->
+        PlaybackTargetHolder.current.value = PlaybackTarget.VideoOnDemand(m)
+        nav.openPlayer()
+    }
     Scaffold(
         containerColor = Color.Transparent,
         bottomBar = { TvApkBottomBar(nav) }
@@ -83,16 +90,8 @@ fun TvApkRoot() {
                     SearchScreen(onChannelTap = openChannel, onMovieTap = openMovie)
                 }
                 composable(Tab.Settings.route) { SettingsScreen() }
-                composable("player?title={title}&url={url}&logo={logo}") { backStack ->
-                    val title = backStack.arguments?.getString("title").orEmpty()
-                    val url = backStack.arguments?.getString("url").orEmpty()
-                    val logo = backStack.arguments?.getString("logo").orEmpty()
-                    PlayerScreen(
-                        title = title,
-                        streamUrl = url,
-                        logo = logo,
-                        onBack = { nav.popBackStack() },
-                    )
+                composable("player") {
+                    PlayerScreen(onBack = { nav.popBackStack() })
                 }
             }
         }
@@ -103,7 +102,7 @@ fun TvApkRoot() {
 private fun TvApkBottomBar(nav: NavHostController) {
     val backStack by nav.currentBackStackEntryAsState()
     val current = backStack?.destination?.route
-    if (current?.startsWith("player") == true) return
+    if (current == "player") return
     NavigationBar(
         containerColor = Color(0xCC0E1220),
         tonalElevation = 0.dp,
@@ -136,9 +135,6 @@ private fun NavHostController.tabNavigate(route: String) {
     }
 }
 
-private fun NavHostController.openPlayer(title: String, url: String, logo: String?) {
-    val t = URLEncoder.encode(title, "UTF-8")
-    val u = URLEncoder.encode(url, "UTF-8")
-    val l = URLEncoder.encode(logo.orEmpty(), "UTF-8")
-    navigate("player?title=$t&url=$u&logo=$l")
+private fun NavHostController.openPlayer() {
+    navigate("player")
 }

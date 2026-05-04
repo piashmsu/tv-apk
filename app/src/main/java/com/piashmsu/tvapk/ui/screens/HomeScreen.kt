@@ -55,12 +55,15 @@ fun HomeScreen(
     val vm: AppViewModel = viewModel(factory = AppViewModel.Factory)
     val channels by vm.channels.collectAsState()
     val movies by vm.movies.collectAsState()
-    val playlistUrl by vm.playlistUrl.collectAsState()
+    val playlistSources by vm.playlistSources.collectAsState()
     val movieUrl by vm.movieCatalogUrl.collectAsState()
+    val recents by vm.recents.collectAsState()
+    val favorites by vm.favorites.collectAsState()
+    val epg by vm.epg.collectAsState()
 
     val featured = movies.firstOrNull { !it.backdrop.isNullOrBlank() }
         ?: movies.firstOrNull()
-    val isOnboarding = playlistUrl.isBlank() && movieUrl.isBlank()
+    val isOnboarding = playlistSources.isEmpty() && movieUrl.isBlank()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -93,6 +96,40 @@ fun HomeScreen(
             )
         }
 
+        if (recents.isNotEmpty()) {
+            val recentChannels = recents.mapNotNull { rc ->
+                channels.firstOrNull { it.id == rc.channelId }
+            }.take(10)
+            if (recentChannels.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "Recently watched",
+                        subtitle = "Pick up where you left off",
+                    )
+                }
+                item {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        items(recentChannels, key = { it.id }) { ch ->
+                            val now = epg[ch.tvgId.orEmpty()].orEmpty()
+                                .firstOrNull { p -> System.currentTimeMillis() in p.start..p.end }
+                            ChannelTile(
+                                name = ch.name,
+                                logo = ch.logo,
+                                group = ch.country ?: ch.language ?: ch.group,
+                                isFavorite = ch.id in favorites,
+                                nowPlayingTitle = now?.title,
+                                onClick = { onChannelTap(ch) },
+                                onFavorite = { vm.toggleFavorite(ch.id) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         if (channels.isNotEmpty()) {
             item {
                 SectionHeader(
@@ -106,11 +143,16 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     items(channels.take(20)) { ch ->
+                        val now = epg[ch.tvgId.orEmpty()].orEmpty()
+                            .firstOrNull { p -> System.currentTimeMillis() in p.start..p.end }
                         ChannelTile(
                             name = ch.name,
                             logo = ch.logo,
                             group = ch.group,
+                            isFavorite = ch.id in favorites,
+                            nowPlayingTitle = now?.title,
                             onClick = { onChannelTap(ch) },
+                            onFavorite = { vm.toggleFavorite(ch.id) },
                         )
                     }
                 }

@@ -16,23 +16,33 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.LiveTv
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Save
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,23 +51,26 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.piashmsu.tvapk.R
+import com.piashmsu.tvapk.data.PlaylistSource
+import com.piashmsu.tvapk.data.RefreshInterval
 import com.piashmsu.tvapk.ui.AppViewModel
+import java.util.UUID
 
 @Composable
 fun SettingsScreen() {
     val vm: AppViewModel = viewModel(factory = AppViewModel.Factory)
-    val playlistUrl by vm.playlistUrl.collectAsState()
+    val playlistSources by vm.playlistSources.collectAsState()
     val movieUrl by vm.movieCatalogUrl.collectAsState()
+    val refreshInterval by vm.refreshInterval.collectAsState()
+    val lastAutoRefresh by vm.lastAutoRefresh.collectAsState()
+
     val uriHandler = LocalUriHandler.current
-
-    var localPlaylist by remember { mutableStateOf(playlistUrl) }
-    var localMovies by remember { mutableStateOf(movieUrl) }
-
-    LaunchedEffect(playlistUrl) { if (localPlaylist.isBlank()) localPlaylist = playlistUrl }
-    LaunchedEffect(movieUrl) { if (localMovies.isBlank()) localMovies = movieUrl }
+    var localMovies by remember(movieUrl) { mutableStateOf(movieUrl) }
+    var editing by remember { mutableStateOf<PlaylistSource?>(null) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -67,23 +80,80 @@ fun SettingsScreen() {
         item { TopHeader() }
 
         item {
-            Card("IPTV / M3U Playlist URL") {
+            Card("IPTV / M3U playlists") {
                 Text(
-                    "Provide an HTTPS link to an .m3u or .m3u8 file (typically supplied by your IPTV provider). The app parses tvg-name, tvg-logo, group-title, and tvg-id directives.",
+                    "Add one or more M3U playlist URLs. The Live TV tab merges channels from every enabled source. Each source can carry its own EPG (XMLTV), User-Agent, and Referer overrides for protected streams.",
                     color = Color(0xCCBFC4D6),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = localPlaylist,
-                    onValueChange = { localPlaylist = it },
-                    placeholder = { Text("https://example.com/playlist.m3u") },
-                    singleLine = true,
-                    colors = textFieldColors(),
-                    modifier = Modifier.fillMaxWidth(),
+
+                if (playlistSources.isEmpty()) {
+                    EmptySources()
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        playlistSources.forEach { src ->
+                            SourceRow(
+                                source = src,
+                                onToggle = { vm.togglePlaylistEnabled(src) },
+                                onEdit = { editing = src },
+                                onDelete = { vm.removePlaylistSource(src.id) },
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        editing = PlaylistSource(
+                            id = UUID.randomUUID().toString(),
+                            name = "",
+                            url = "",
+                        )
+                    },
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                    ),
+                ) {
+                    Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(6.dp))
+                    Text("Add playlist", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+
+        item {
+            Card("Auto-refresh") {
+                Text(
+                    "Periodically re-fetch every enabled playlist and EPG in the background so the Live TV tab stays up to date.",
+                    color = Color(0xCCBFC4D6),
+                    style = MaterialTheme.typography.bodyMedium,
                 )
-                Spacer(Modifier.height(10.dp))
-                PrimaryButton(text = "Save & load channels", onClick = { vm.savePlaylistUrl(localPlaylist) })
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    RefreshInterval.values().forEach { value ->
+                        AssistChip(
+                            onClick = { vm.setRefreshInterval(value) },
+                            label = { Text(value.label, style = MaterialTheme.typography.labelLarge) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = if (refreshInterval == value)
+                                    MaterialTheme.colorScheme.primary
+                                else Color(0xFF1B2143),
+                                labelColor = if (refreshInterval == value) Color.White else Color(0xCCBFC4D6),
+                            ),
+                            border = null,
+                        )
+                    }
+                }
+                if (lastAutoRefresh.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Last refresh: $lastAutoRefresh",
+                        color = Color(0x88BFC4D6),
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
             }
         }
 
@@ -104,13 +174,15 @@ fun SettingsScreen() {
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(10.dp))
-                PrimaryButton(text = "Save & load catalog", onClick = { vm.saveMovieCatalogUrl(localMovies) })
+                PrimaryButton(text = "Save & load catalog") {
+                    vm.saveMovieCatalogUrl(localMovies)
+                }
             }
         }
 
         item {
             Card("About") {
-                AboutRow("App", "TV APK • v1.0")
+                AboutRow("App", "TV APK • v2.0")
                 AboutRow("Developer", stringResource(R.string.developer_name))
                 Row(
                     modifier = Modifier
@@ -126,15 +198,12 @@ fun SettingsScreen() {
                 }
                 AboutRow("Player", "Media3 / ExoPlayer 1.4.1")
                 AboutRow("Streaming", "HLS • DASH • SmoothStreaming • RTSP • Progressive")
+                AboutRow("Live features", "EPG • Catch-up • Recording • Favorites")
             }
         }
 
         item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-            ) {
+            Box(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
                 Text(
                     "TV APK is a player shell. The user is responsible for ensuring the streams and catalogs they configure are legal to consume in their jurisdiction.",
                     color = Color(0x88BFC4D6),
@@ -143,14 +212,227 @@ fun SettingsScreen() {
             }
         }
     }
+
+    val source = editing
+    if (source != null) {
+        PlaylistEditorDialog(
+            initial = source,
+            onDismiss = { editing = null },
+            onSave = {
+                vm.upsertPlaylistSource(it)
+                editing = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun EmptySources() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF0B0F1F))
+            .padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            Icons.Outlined.LiveTv,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(36.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "No playlists yet",
+            color = Color.White,
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            "Tap “Add playlist” below and paste a legal IPTV M3U URL.",
+            color = Color(0xCCBFC4D6),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+@Composable
+private fun SourceRow(
+    source: PlaylistSource,
+    onToggle: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF0B0F1F))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)
+                    )
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Outlined.LiveTv, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+        }
+        Spacer(Modifier.size(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                source.name.ifBlank { "Untitled playlist" },
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                source.url,
+                color = Color(0xAABFC4D6),
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val flags = listOfNotNull(
+                source.epgUrl?.let { "EPG" },
+                source.userAgent?.let { "UA" },
+                source.referer?.let { "Referer" },
+            )
+            if (flags.isNotEmpty()) {
+                Text(
+                    flags.joinToString(" • "),
+                    color = MaterialTheme.colorScheme.secondary,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+        Switch(
+            checked = source.enabled,
+            onCheckedChange = { onToggle() },
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+            ),
+        )
+        IconButton(onClick = onEdit) {
+            Icon(Icons.Outlined.Edit, contentDescription = "Edit", tint = Color(0xCCBFC4D6))
+        }
+        IconButton(onClick = onDelete) {
+            Icon(Icons.Outlined.Delete, contentDescription = "Delete", tint = Color(0xCCFF6B81))
+        }
+    }
+}
+
+@Composable
+private fun PlaylistEditorDialog(
+    initial: PlaylistSource,
+    onDismiss: () -> Unit,
+    onSave: (PlaylistSource) -> Unit,
+) {
+    var name by remember { mutableStateOf(initial.name) }
+    var url by remember { mutableStateOf(initial.url) }
+    var epg by remember { mutableStateOf(initial.epgUrl.orEmpty()) }
+    var ua by remember { mutableStateOf(initial.userAgent.orEmpty()) }
+    var referer by remember { mutableStateOf(initial.referer.orEmpty()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF161B2E),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.LiveTv, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    if (initial.url.isBlank()) "Add playlist" else "Edit playlist",
+                    color = Color.White,
+                )
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    placeholder = { Text("Name (e.g. My desh playlist)") },
+                    singleLine = true,
+                    colors = textFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    placeholder = { Text("M3U / M3U8 URL") },
+                    singleLine = true,
+                    colors = textFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = epg,
+                    onValueChange = { epg = it },
+                    placeholder = { Text("EPG / XMLTV URL (optional)") },
+                    singleLine = true,
+                    colors = textFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = ua,
+                    onValueChange = { ua = it },
+                    placeholder = { Text("Default User-Agent (optional)") },
+                    singleLine = true,
+                    colors = textFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = referer,
+                    onValueChange = { referer = it },
+                    placeholder = { Text("Default Referer (optional)") },
+                    singleLine = true,
+                    colors = textFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        initial.copy(
+                            name = name.trim().ifBlank { "Playlist" },
+                            url = url.trim(),
+                            epgUrl = epg.trim().ifBlank { null },
+                            userAgent = ua.trim().ifBlank { null },
+                            referer = referer.trim().ifBlank { null },
+                        )
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+            ) {
+                Icon(Icons.Outlined.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(6.dp))
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            FilledTonalButton(onClick = onDismiss) {
+                Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(6.dp))
+                Text("Cancel")
+            }
+        },
+    )
 }
 
 @Composable
 private fun TopHeader() {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(20.dp),
+        modifier = Modifier.fillMaxWidth().padding(20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -164,13 +446,13 @@ private fun TopHeader() {
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Outlined.Save, contentDescription = null, tint = Color.White)
+            Icon(Icons.Outlined.Schedule, contentDescription = null, tint = Color.White)
         }
         Spacer(Modifier.size(12.dp))
         Column {
             Text("Settings", color = Color.White, style = MaterialTheme.typography.headlineLarge)
             Text(
-                "Bring your own playlist & catalog",
+                "Playlists, EPG, auto-refresh & catalogs",
                 color = Color(0xCCBFC4D6),
                 style = MaterialTheme.typography.labelMedium,
             )
@@ -190,7 +472,11 @@ private fun Card(title: String, content: @Composable () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = if (title.contains("Movie", ignoreCase = true)) Icons.Outlined.Movie else Icons.Outlined.LiveTv,
+                imageVector = when {
+                    title.contains("Movie", ignoreCase = true) -> Icons.Outlined.Movie
+                    title.contains("refresh", ignoreCase = true) -> Icons.Outlined.Schedule
+                    else -> Icons.Outlined.LiveTv
+                },
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
             )
@@ -227,7 +513,7 @@ private fun AboutRow(label: String, value: String) {
 }
 
 @Composable
-private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
+internal fun textFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedContainerColor = Color(0xFF0B0F1F),
     unfocusedContainerColor = Color(0xFF0B0F1F),
     focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -237,3 +523,5 @@ private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedPlaceholderColor = Color(0x88BFC4D6),
     unfocusedPlaceholderColor = Color(0x88BFC4D6),
 )
+
+

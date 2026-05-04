@@ -15,4 +15,5 @@ class AppContainer(context: Context) {
     val prefs: AppPrefs = AppPrefs(context)
     val channelRepo: ChannelRepository = ChannelRepository(context, http, prefs)
     val movieRepo: MovieRepository = MovieRepository(context, http, prefs)
+    val epgRepo: EpgRepository = EpgRepository(http, prefs)
 }

@@ -10,18 +10,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.LiveTv
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
@@ -40,12 +36,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
 import com.piashmsu.tvapk.data.Channel
 import com.piashmsu.tvapk.data.Category
 import com.piashmsu.tvapk.data.LoadState
@@ -55,12 +48,16 @@ import com.piashmsu.tvapk.ui.components.EmptyState
 import com.piashmsu.tvapk.ui.components.GenreChip
 import com.piashmsu.tvapk.ui.components.SectionHeader
 
+private const val FAVORITES_GROUP = "★ Favorites"
+
 @Composable
 fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
     val vm: AppViewModel = viewModel(factory = AppViewModel.Factory)
     val channels by vm.channels.collectAsState()
     val state by vm.channelState.collectAsState()
-    val playlistUrl by vm.playlistUrl.collectAsState()
+    val sources by vm.playlistSources.collectAsState()
+    val favorites by vm.favorites.collectAsState()
+    val epg by vm.epg.collectAsState()
 
     var query by remember { mutableStateOf("") }
     var selectedGroup by remember { mutableStateOf<String?>(null) }
@@ -69,14 +66,14 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
         TopRow(
             title = "Live TV",
             subtitle = if (channels.isEmpty()) "No channels yet" else "${channels.size} channels",
-            onRefresh = { vm.refreshChannels() },
+            onRefresh = { vm.refreshChannels(); vm.refreshEpg() },
             isRefreshing = state is LoadState.Loading,
         )
 
-        if (playlistUrl.isBlank()) {
+        if (sources.isEmpty()) {
             EmptyState(
-                title = "No playlist configured",
-                body = "Add your IPTV M3U playlist URL in Settings to load live TV channels.",
+                title = "No playlists configured",
+                body = "Add at least one IPTV M3U playlist URL in Settings to load live TV channels.",
             )
             return
         }
@@ -105,9 +102,22 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 6.dp),
         )
 
-        val groups: List<Category<Channel>> = remember(channels, query) {
+        val baseGroups: List<Category<Channel>> = remember(channels, query) {
             vm.channelRepo.groupedByCategory(query)
         }
+        val favCategory = remember(channels, favorites, query) {
+            val favList = channels.filter { it.id in favorites }
+                .let { list ->
+                    if (query.isBlank()) list
+                    else list.filter {
+                        it.name.contains(query, ignoreCase = true) ||
+                            it.group.contains(query, ignoreCase = true)
+                    }
+                }
+                .sortedBy { it.name }
+            if (favList.isEmpty()) null else Category(FAVORITES_GROUP, favList)
+        }
+        val groups = listOfNotNull(favCategory) + baseGroups
         val groupNames = groups.map { it.title }
 
         if (groupNames.isNotEmpty()) {
@@ -164,12 +174,17 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
                             contentPadding = PaddingValues(horizontal = 14.dp),
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            items(cat.items) { ch ->
+                            items(cat.items, key = { it.id }) { ch ->
+                                val nowPlaying = epg[ch.tvgId.orEmpty()].orEmpty()
+                                    .firstOrNull { now -> System.currentTimeMillis() in now.start..now.end }
                                 ChannelTile(
                                     name = ch.name,
                                     logo = ch.logo,
                                     group = ch.country ?: ch.language ?: ch.group,
+                                    isFavorite = ch.id in favorites,
+                                    nowPlayingTitle = nowPlaying?.title,
                                     onClick = { onChannelTap(ch) },
+                                    onFavorite = { vm.toggleFavorite(ch.id) },
                                 )
                             }
                         }

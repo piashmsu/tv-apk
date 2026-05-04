@@ -2,8 +2,8 @@ package com.piashmsu.tvapk.ui.screens
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import android.view.WindowInsets
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,23 +14,26 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Replay10
-import androidx.compose.material.icons.outlined.Forward10
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.FastForward
+import androidx.compose.material.icons.outlined.FastRewind
+import androidx.compose.material.icons.outlined.FiberManualRecord
+import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Stop
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,61 +41,87 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import coil.compose.AsyncImage
+import com.piashmsu.tvapk.data.PlaybackTarget
+import com.piashmsu.tvapk.data.PlaybackTargetHolder
+import com.piashmsu.tvapk.data.RecentChannel
 import com.piashmsu.tvapk.player.buildPlayerForUrl
-import kotlinx.coroutines.delay
-import java.net.URLDecoder
+import com.piashmsu.tvapk.record.RecordingArgs
+import com.piashmsu.tvapk.record.RecordingService
+import com.piashmsu.tvapk.record.RecordingState
+import com.piashmsu.tvapk.ui.AppViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
-fun PlayerScreen(
-    title: String,
-    streamUrl: String,
-    logo: String,
-    onBack: () -> Unit,
-) {
+fun PlayerScreen(onBack: () -> Unit) {
+    val vm: AppViewModel = viewModel(factory = AppViewModel.Factory)
+    val target by PlaybackTargetHolder.current.collectAsState()
+
+    if (target == null) {
+        Column(
+            modifier = Modifier.fillMaxSize().background(Color.Black),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("No stream selected", color = Color.White)
+            Spacer(Modifier.height(8.dp))
+            FilledTonalIconButton(onClick = onBack) {
+                Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
+            }
+        }
+        return
+    }
+
+    val current = target!!
     val context = LocalContext.current
-    val view = LocalView.current
 
-    val decodedTitle = remember(title) { runCatching { URLDecoder.decode(title, "UTF-8") }.getOrDefault(title) }
-    val decodedUrl = remember(streamUrl) { runCatching { URLDecoder.decode(streamUrl, "UTF-8") }.getOrDefault(streamUrl) }
-    val decodedLogo = remember(logo) { runCatching { URLDecoder.decode(logo, "UTF-8") }.getOrDefault(logo) }
+    val ua = (current as? PlaybackTarget.LiveChannel)?.channel?.httpUserAgent
+    val referer = (current as? PlaybackTarget.LiveChannel)?.channel?.httpReferer
+    val headers = (current as? PlaybackTarget.LiveChannel)?.channel?.httpHeaders.orEmpty()
 
-    var isPlaying by remember { mutableStateOf(true) }
-    var isBuffering by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var controlsVisible by remember { mutableStateOf(true) }
-
-    val player = remember(decodedUrl) {
-        buildPlayerForUrl(context, decodedUrl).apply {
-            setMediaItem(MediaItem.fromUri(decodedUrl))
+    val player = remember(current) {
+        buildPlayerForUrl(context, current.streamUrl, ua, referer, headers).apply {
+            setMediaItem(MediaItem.fromUri(current.streamUrl))
             prepare()
             playWhenReady = true
         }
     }
+    var isPlaying by remember { mutableStateOf(true) }
+
+    LaunchedEffect(current) {
+        vm.prefs.setLastPlayed(current.title)
+        if (current is PlaybackTarget.LiveChannel) {
+            val ch = current.channel
+            vm.pushRecent(
+                RecentChannel(
+                    channelId = ch.id,
+                    name = ch.name,
+                    logo = ch.logo,
+                    streamUrl = ch.streamUrl,
+                    timestamp = System.currentTimeMillis(),
+                )
+            )
+        }
+    }
+
+    EnterImmersive()
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
-            override fun onPlaybackStateChanged(state: Int) {
-                isBuffering = state == Player.STATE_BUFFERING
-            }
-            override fun onPlayerError(e: PlaybackException) {
-                error = e.localizedMessage ?: "Playback error"
-            }
         }
         player.addListener(listener)
         onDispose {
@@ -101,36 +130,19 @@ fun PlayerScreen(
         }
     }
 
-    val activity = (LocalView.current.context as? Activity)
-    DisposableEffect(activity) {
-        val originalOrientation = activity?.requestedOrientation
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        val window = activity?.window
-        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
-        controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        controller?.hide(WindowInsetsCompat.Type.systemBars())
-        onDispose {
-            controller?.show(WindowInsetsCompat.Type.systemBars())
-            if (originalOrientation != null) {
-                activity.requestedOrientation = originalOrientation
-            }
-        }
+    val nowPlaying = (current as? PlaybackTarget.LiveChannel)?.let { lc ->
+        val tvgId = lc.channel.tvgId
+        vm.epgRepo.nowPlaying(tvgId)
+    }
+    val upNext = (current as? PlaybackTarget.LiveChannel)?.let { lc ->
+        vm.epgRepo.upNext(lc.channel.tvgId)
     }
 
-    LaunchedEffect(controlsVisible, isPlaying) {
-        if (controlsVisible && isPlaying) {
-            delay(3500)
-            controlsVisible = false
-        }
-    }
+    val recordingState by RecordingService.state.collectAsState()
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .clickable { controlsVisible = !controlsVisible },
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
+            modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     this.player = player
@@ -138,122 +150,178 @@ fun PlayerScreen(
                     setShutterBackgroundColor(android.graphics.Color.BLACK)
                 }
             },
-            modifier = Modifier.fillMaxSize(),
         )
 
-        if (isBuffering && error == null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.secondary)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilledTonalIconButton(onClick = onBack) {
+                Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
             }
-        }
-
-        if (error != null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xCC000000)),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text("Playback failed", color = Color.White, style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.size(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    error.orEmpty(),
-                    color = Color(0xCCBFC4D6),
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(20.dp),
+                    current.title,
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
-            }
-        }
-
-        if (controlsVisible) {
-            // Top bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color(0xCC000000), Color.Transparent)))
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
-                if (decodedLogo.isNotBlank()) {
-                    AsyncImage(
-                        model = decodedLogo,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0x33FFFFFF)),
-                    )
-                    Spacer(Modifier.width(10.dp))
-                }
-                Column {
-                    Text(decodedTitle, color = Color.White, style = MaterialTheme.typography.titleLarge)
+                if (nowPlaying != null) {
                     Text(
-                        "TV APK player",
-                        color = Color(0xAABFC4D6),
+                        "● ${nowPlaying.title}",
+                        color = MaterialTheme.colorScheme.secondary,
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                } else {
+                    Text(
+                        "Streaming via ExoPlayer",
+                        color = Color(0xCCBFC4D6),
                         style = MaterialTheme.typography.labelMedium,
                     )
                 }
             }
+            if (current is PlaybackTarget.LiveChannel) {
+                val recordingActive = recordingState is RecordingState.Active
+                FilledTonalIconButton(
+                    onClick = {
+                        if (recordingActive) {
+                            RecordingService.stop(context)
+                        } else {
+                            RecordingService.start(
+                                context,
+                                RecordingArgs(
+                                    streamUrl = current.streamUrl,
+                                    title = current.title,
+                                    userAgent = ua,
+                                    referer = referer,
+                                    extraHeaders = headers,
+                                ),
+                            )
+                        }
+                    },
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = if (recordingActive) Color(0xFFFF3E5C) else Color(0x99000000),
+                        contentColor = Color.White,
+                    ),
+                ) {
+                    Icon(
+                        if (recordingActive) Icons.Outlined.Stop else Icons.Outlined.FiberManualRecord,
+                        contentDescription = if (recordingActive) "Stop recording" else "Record",
+                    )
+                }
+            }
+        }
 
-            // Center controls
-            Row(
-                modifier = Modifier
-                    .align(Alignment.Center),
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ControlButton(icon = Icons.Outlined.Replay10) {
-                    player.seekTo((player.currentPosition - 10_000).coerceAtLeast(0))
-                }
-                CenterPlayPause(isPlaying = isPlaying) {
+        Row(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilledTonalIconButton(onClick = { player.seekBack() }) {
+                Icon(Icons.Outlined.FastRewind, contentDescription = "Rewind 10s")
+            }
+            FilledTonalIconButton(
+                onClick = {
                     if (isPlaying) player.pause() else player.play()
+                },
+                modifier = Modifier.size(72.dp),
+            ) {
+                Icon(
+                    if (isPlaying) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+                    contentDescription = "Play/pause",
+                    modifier = Modifier.size(36.dp),
+                )
+            }
+            FilledTonalIconButton(onClick = { player.seekForward() }) {
+                Icon(Icons.Outlined.FastForward, contentDescription = "Fast-forward 10s")
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            (current as? PlaybackTarget.LiveChannel)?.let { lc ->
+                if (lc.channel.hasCatchup) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(Color(0x99000000))
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Outlined.Schedule,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Spacer(Modifier.size(6.dp))
+                        Text(
+                            "Catch-up: rewind up to ${lc.channel.catchupDays} days",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
                 }
-                ControlButton(icon = Icons.Outlined.Forward10) {
-                    player.seekTo(player.currentPosition + 10_000)
-                }
+            }
+            if (upNext != null) {
+                Text(
+                    "Up next: ${upNext.title} • ${formatTime(upNext.start)}",
+                    color = Color(0xCCBFC4D6),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+            (recordingState as? RecordingState.Active)?.let {
+                Text(
+                    "● Recording: ${it.bytesWritten / 1024 / 1024} MB written",
+                    color = Color(0xFFFF3E5C),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+            (recordingState as? RecordingState.Finished)?.let {
+                Text(
+                    "Recording saved → ${it.output}",
+                    color = Color(0xFF8AE070),
+                    style = MaterialTheme.typography.labelMedium,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun ControlButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .size(56.dp)
-            .clip(CircleShape)
-            .background(Color(0x66000000))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+private fun EnterImmersive() {
+    val context = LocalContext.current
+    DisposableEffect(Unit) {
+        val activity = context as? Activity ?: return@DisposableEffect onDispose { }
+        val window = activity.window
+        val previousOrientation = activity.requestedOrientation
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+        activity.requestedOrientation =
+            ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
+        onDispose {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+            WindowCompat.setDecorFitsSystemWindows(window, true)
+            activity.requestedOrientation = previousOrientation
+        }
     }
 }
 
-@Composable
-private fun CenterPlayPause(isPlaying: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(72.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primary)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(36.dp),
-        )
-    }
-}
+private fun formatTime(epoch: Long): String =
+    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(epoch))
