@@ -11,8 +11,8 @@ android {
         applicationId = "com.piashmsu.tvapk"
         minSdk = 23
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "3.0-vibe"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -102,9 +102,6 @@ dependencies {
 
     // Background refresh of playlists / EPG
     implementation("androidx.work:work-runtime-ktx:2.9.0")
-
-    // Google AdMob (rewarded ads to unlock recording)
-    implementation("com.google.android.gms:play-services-ads:23.0.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

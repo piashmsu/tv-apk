@@ -1,11 +1,9 @@
 package com.piashmsu.tvapk.ui
 
-import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.piashmsu.tvapk.TvApkApp
-import com.piashmsu.tvapk.ads.AdIds
 import com.piashmsu.tvapk.data.AppContainer
 import com.piashmsu.tvapk.data.AppPrefs
 import com.piashmsu.tvapk.data.ChannelRepository
@@ -38,10 +36,6 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
     val recents = prefs.recents
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    val premiumUntil = prefs.premiumUntil
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
-
-    val rewardedAdState = container.rewardedAds.state
 
     val channelState = channelRepo.state
     val movieState = movieRepo.state
@@ -100,28 +94,6 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
 
     fun pushRecent(entry: RecentChannel) {
         viewModelScope.launch { prefs.pushRecent(entry) }
-    }
-
-    /** Begin loading a rewarded ad if one isn't already cached. */
-    fun preloadRewardedAd() {
-        container.rewardedAds.preload()
-    }
-
-    /**
-     * Show the rewarded ad and, on a successful reward, extend the premium
-     * unlock window. Returns `true` if the ad was actually presented; if
-     * `false` the caller should call [preloadRewardedAd] first.
-     */
-    fun showRewardedAd(activity: Activity, onClosed: (rewarded: Boolean) -> Unit = {}): Boolean {
-        return container.rewardedAds.show(
-            activity,
-            onReward = { extendPremium(AdIds.UNLOCK_DURATION_MS) },
-            onClosed = onClosed,
-        )
-    }
-
-    private fun extendPremium(durationMs: Long) {
-        viewModelScope.launch { prefs.extendPremium(durationMs) }
     }
 
     fun refreshChannels() { viewModelScope.launch { channelRepo.refresh() } }

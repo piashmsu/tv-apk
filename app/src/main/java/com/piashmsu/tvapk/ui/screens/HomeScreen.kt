@@ -1,6 +1,7 @@
 package com.piashmsu.tvapk.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,8 +17,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.LiveTv
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -33,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.res.stringResource
@@ -45,6 +49,7 @@ import com.piashmsu.tvapk.ui.components.ChannelTile
 import com.piashmsu.tvapk.ui.components.EmptyState
 import com.piashmsu.tvapk.ui.components.MovieCard
 import com.piashmsu.tvapk.ui.components.SectionHeader
+import com.piashmsu.tvapk.ui.theme.GradientHero
 
 @Composable
 fun HomeScreen(
@@ -75,7 +80,7 @@ fun HomeScreen(
             item {
                 EmptyState(
                     title = "Welcome to TV APK",
-                    body = "Add your IPTV M3U playlist URL and (optional) movies catalog URL in Settings to start watching live TV channels and movies.",
+                    body = "Add your IPTV M3U playlist URL or pick an .m3u file from your device in Settings to start watching live channels and movies.",
                     actionLabel = "Open Settings",
                     onAction = { onTabRequest("settings") },
                 )
@@ -86,6 +91,14 @@ fun HomeScreen(
 
         if (featured != null) {
             item { Hero(featured = featured, onPlay = { onMovieTap(featured) }) }
+        } else if (channels.isNotEmpty()) {
+            item {
+                LiveHero(
+                    channelCount = channels.size,
+                    spotlight = channels.firstOrNull { !it.logo.isNullOrBlank() } ?: channels.first(),
+                    onWatch = { onTabRequest("live") },
+                )
+            }
         }
 
         item {
@@ -191,30 +204,53 @@ private fun TopBrandBar() {
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Animated gradient logo — slow spin via hue-shift in the brush
         Box(
             modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
-                    )
-                ),
+                .size(44.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(GradientHero),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 Icons.Outlined.LiveTv,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(24.dp),
             )
         }
-        Spacer(Modifier.size(10.dp))
-        Column {
-            Text(stringResource(R.string.app_name), color = Color.White, style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.size(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.app_name),
+                color = Color.White,
+                style = MaterialTheme.typography.headlineSmall,
+            )
             Text(
                 "Live TV • Hindi & Bangla • Movies",
                 color = Color(0xCCBFC4D6),
+                style = MaterialTheme.typography.labelMedium,
+            )
+        }
+        // Vibe badge — purely decorative neon chip.
+        Row(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(Color(0x33A855F7))
+                .border(1.dp, Color(0x66A855F7), CircleShape)
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Outlined.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(14.dp),
+            )
+            Spacer(Modifier.size(4.dp))
+            Text(
+                "Vibe",
+                color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.labelMedium,
             )
         }
@@ -227,13 +263,14 @@ private fun Hero(featured: Movie, onPlay: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .height(220.dp)
-            .clip(RoundedCornerShape(22.dp))
+            .height(240.dp)
+            .clip(RoundedCornerShape(28.dp))
             .background(
                 Brush.linearGradient(
-                    listOf(Color(0xFF161B2E), Color(0xFF0B0F1F))
+                    listOf(Color(0xFF1A0F3A), Color(0xFF0B0E22))
                 )
             )
+            .border(1.dp, Color(0x33A855F7), RoundedCornerShape(28.dp))
             .clickable(onClick = onPlay),
     ) {
         if (!featured.backdrop.isNullOrBlank()) {
@@ -241,14 +278,14 @@ private fun Hero(featured: Movie, onPlay: () -> Unit) {
                 model = featured.backdrop,
                 contentDescription = featured.title,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                contentScale = ContentScale.Crop,
             )
         } else if (!featured.poster.isNullOrBlank()) {
             AsyncImage(
                 model = featured.poster,
                 contentDescription = featured.title,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                contentScale = ContentScale.Crop,
             )
         }
         Box(
@@ -256,7 +293,7 @@ private fun Hero(featured: Movie, onPlay: () -> Unit) {
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color.Transparent, Color(0xCC04060B), Color(0xFF04060B))
+                        listOf(Color.Transparent, Color(0xCC050616), Color(0xFF050616))
                     )
                 )
         )
@@ -281,9 +318,9 @@ private fun Hero(featured: Movie, onPlay: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(MaterialTheme.colorScheme.primary)
+                        .background(GradientHero)
                         .clickable(onClick = onPlay)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 18.dp, vertical = 10.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -306,6 +343,108 @@ private fun Hero(featured: Movie, onPlay: () -> Unit) {
                     color = Color(0xCCBFC4D6),
                     style = MaterialTheme.typography.labelMedium,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Live-TV hero shown when there are channels but no movies. The whole
+ * hero is one big "Watch live" CTA that drops you on the Live TV tab.
+ * A slow-rotating neon gradient runs in the background to give the
+ * surface a "vibe-edition" feel even when there's no artwork to show.
+ */
+@Composable
+private fun LiveHero(channelCount: Int, spotlight: Channel, onWatch: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .height(220.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF2A0F4A), Color(0xFF0E1E3D), Color(0xFF0B0E22))
+                )
+            )
+            .border(1.dp, Color(0x44A855F7), RoundedCornerShape(28.dp))
+            .clickable(onClick = onWatch),
+    ) {
+        // Decorative oversized logo bleed.
+        if (!spotlight.logo.isNullOrBlank()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 12.dp)
+                    .size(160.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                AsyncImage(
+                    model = spotlight.logo,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(20.dp)),
+                    contentScale = ContentScale.Fit,
+                )
+            }
+        }
+        // Soft fade so the logo doesn't fight the title.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(Color(0xEE0B0E22), Color(0x880B0E22), Color.Transparent)
+                    )
+                )
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(24.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.tertiary)
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                ) {
+                    Text("LIVE NOW", color = Color.White, style = MaterialTheme.typography.labelSmall)
+                }
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    "$channelCount channels",
+                    color = MaterialTheme.colorScheme.secondary,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "World TV at your fingertips",
+                color = Color.White,
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 2,
+            )
+            Spacer(Modifier.height(12.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(GradientHero)
+                    .clickable(onClick = onWatch)
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.size(6.dp))
+                    Text("Watch live", color = Color.White, style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }
@@ -357,14 +496,27 @@ private fun QuickAction(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF111527))
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFF161A36), Color(0xFF0B0E22))
+                )
+            )
+            .border(1.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
+            .padding(vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(icon, contentDescription = label, tint = tint)
-        Spacer(Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(tint.copy(alpha = 0.18f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.height(6.dp))
         Text(label, color = Color.White, style = MaterialTheme.typography.labelLarge)
     }
 }
@@ -389,4 +541,3 @@ fun DeveloperBadge() {
         )
     }
 }
-

@@ -1,9 +1,19 @@
 package com.piashmsu.tvapk.ui
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LiveTv
@@ -12,15 +22,14 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -40,6 +49,7 @@ import com.piashmsu.tvapk.ui.screens.MoviesScreen
 import com.piashmsu.tvapk.ui.screens.PlayerScreen
 import com.piashmsu.tvapk.ui.screens.SearchScreen
 import com.piashmsu.tvapk.ui.screens.SettingsScreen
+import com.piashmsu.tvapk.ui.theme.GradientBackground
 
 private sealed class Tab(val route: String, val title: String, val icon: ImageVector) {
     data object Home : Tab("home", "Home", Icons.Outlined.Home)
@@ -69,11 +79,7 @@ fun TvApkRoot() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFF0B0F1F), Color(0xFF04060B))
-                    )
-                )
+                .background(GradientBackground)
                 .padding(padding)
         ) {
             NavHost(navController = nav, startDestination = Tab.Home.route) {
@@ -98,29 +104,70 @@ fun TvApkRoot() {
     }
 }
 
+/**
+ * Floating glassmorphic pill nav. Selected tab grows a neon-purple capsule
+ * under it with a faint glow. Replaces the stock Material NavigationBar so
+ * we get the floating pill silhouette and the grow-on-select animation.
+ */
 @Composable
 private fun TvApkBottomBar(nav: NavHostController) {
     val backStack by nav.currentBackStackEntryAsState()
     val current = backStack?.destination?.route
     if (current == "player") return
-    NavigationBar(
-        containerColor = Color(0xCC0E1220),
-        tonalElevation = 0.dp,
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        tabs.forEach { tab ->
-            val selected = current == tab.route
-            NavigationBarItem(
-                selected = selected,
-                onClick = { nav.tabNavigate(tab.route) },
-                icon = { Icon(tab.icon, contentDescription = tab.title) },
-                label = { Text(tab.title, style = MaterialTheme.typography.labelLarge) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = Color(0x337C5CFF),
-                    unselectedIconColor = Color(0xCCBFC4D6),
-                    unselectedTextColor = Color(0xCCBFC4D6),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(28.dp))
+                .background(Color(0xE6111436))
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            tabs.forEach { tab ->
+                NavPill(
+                    tab = tab,
+                    selected = current == tab.route,
+                    onClick = { nav.tabNavigate(tab.route) },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NavPill(tab: Tab, selected: Boolean, onClick: () -> Unit) {
+    val accent = MaterialTheme.colorScheme.primary
+    val containerColor by animateColorAsState(
+        if (selected) accent.copy(alpha = 0.18f) else Color.Transparent,
+        label = "navPillBg",
+    )
+    val tint by animateColorAsState(
+        if (selected) accent else Color(0xCCBFC4D6),
+        label = "navPillTint",
+    )
+    val interaction = remember { MutableInteractionSource() }
+    Row(
+        modifier = Modifier
+            .height(48.dp)
+            .clip(CircleShape)
+            .background(containerColor)
+            .clickable(interactionSource = interaction, indication = null) { onClick() }
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(tab.icon, contentDescription = tab.title, tint = tint, modifier = Modifier.size(22.dp))
+        if (selected) {
+            Text(
+                tab.title,
+                style = MaterialTheme.typography.labelLarge,
+                color = tint,
             )
         }
     }

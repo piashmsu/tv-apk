@@ -1,7 +1,6 @@
 package com.piashmsu.tvapk.data
 
 import android.content.Context
-import com.piashmsu.tvapk.ads.RewardedAdManager
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -17,5 +16,4 @@ class AppContainer(context: Context) {
     val channelRepo: ChannelRepository = ChannelRepository(context, http, prefs)
     val movieRepo: MovieRepository = MovieRepository(context, http, prefs)
     val epgRepo: EpgRepository = EpgRepository(http, prefs)
-    val rewardedAds: RewardedAdManager = RewardedAdManager(context.applicationContext)
 }

@@ -12,7 +12,6 @@
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
-    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
 
     <uses-feature
         android:name="android.hardware.touchscreen"
@@ -52,13 +51,6 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
-
-        <!-- Google AdMob app ID. Rewarded ads unlock the live-TV recording
-             feature for 30 minutes per ad watched. The ad unit ID is
-             stored in com.piashmsu.tvapk.ads.AdIds. -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-8891768651066045~8943470926" />
 
     </application>
 </manifest>

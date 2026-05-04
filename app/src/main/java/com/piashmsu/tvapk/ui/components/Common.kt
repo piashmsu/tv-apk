@@ -1,6 +1,7 @@
 package com.piashmsu.tvapk.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,10 +41,26 @@ import coil.request.ImageRequest
 
 @Composable
 fun SectionHeader(title: String, subtitle: String? = null, modifier: Modifier = Modifier) {
-    Column(modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineMedium, color = Color.White)
-        if (subtitle != null) {
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Color(0xCCBFC4D6))
+    Row(
+        modifier = modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 4.dp, height = 22.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)
+                    )
+                ),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(title, style = MaterialTheme.typography.headlineSmall, color = Color.White)
+            if (subtitle != null) {
+                Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Color(0xCCBFC4D6))
+            }
         }
     }
 }
@@ -61,8 +78,8 @@ fun ChannelTile(
 ) {
     Column(
         modifier = modifier
-            .width(140.dp)
-            .clip(RoundedCornerShape(18.dp))
+            .width(150.dp)
+            .clip(RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
             .padding(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -70,12 +87,22 @@ fun ChannelTile(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(96.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .height(104.dp)
+                .clip(RoundedCornerShape(18.dp))
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color(0xFF1B2143), Color(0xFF0B0F1F))
+                        listOf(Color(0xFF1A1F46), Color(0xFF0B0E22))
                     )
+                )
+                .border(
+                    width = 1.dp,
+                    brush = Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.40f),
+                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.20f),
+                        )
+                    ),
+                    shape = RoundedCornerShape(18.dp),
                 ),
             contentAlignment = Alignment.Center,
         ) {
@@ -104,10 +131,10 @@ fun ChannelTile(
                     .align(Alignment.TopEnd)
                     .padding(8.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(Color(0xCCFF3E5C))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                    .background(MaterialTheme.colorScheme.tertiary)
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
             ) {
-                Text("LIVE", style = MaterialTheme.typography.labelMedium, color = Color.White)
+                Text("LIVE", style = MaterialTheme.typography.labelSmall, color = Color.White)
             }
 
             if (onFavorite != null) {
@@ -158,20 +185,30 @@ fun MovieCard(
 ) {
     Column(
         modifier = modifier
-            .width(150.dp)
-            .clip(RoundedCornerShape(18.dp))
+            .width(160.dp)
+            .clip(RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
             .padding(6.dp),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(216.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .height(220.dp)
+                .clip(RoundedCornerShape(18.dp))
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color(0xFF1B2143), Color(0xFF0B0F1F))
+                        listOf(Color(0xFF1A1F46), Color(0xFF0B0E22))
                     )
+                )
+                .border(
+                    width = 1.dp,
+                    brush = Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.30f),
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
+                        )
+                    ),
+                    shape = RoundedCornerShape(18.dp),
                 ),
         ) {
             if (!poster.isNullOrBlank()) {

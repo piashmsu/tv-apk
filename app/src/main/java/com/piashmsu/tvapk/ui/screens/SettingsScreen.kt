@@ -1,5 +1,8 @@
 package com.piashmsu.tvapk.ui.screens
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +23,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.LiveTv
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Save
@@ -49,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,8 +74,36 @@ fun SettingsScreen() {
     val lastAutoRefresh by vm.lastAutoRefresh.collectAsState()
 
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
     var localMovies by remember(movieUrl) { mutableStateOf(movieUrl) }
     var editing by remember { mutableStateOf<PlaylistSource?>(null) }
+
+    val pickFile = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            // Persist read access so the URI stays valid across reboots and
+            // background-refresh cycles. Some providers don't support this
+            // (e.g. one-shot share intents) — best-effort.
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            val display = uri.lastPathSegment?.substringAfterLast('/')?.ifBlank { null }
+                ?: "Local M3U"
+            vm.upsertPlaylistSource(
+                PlaylistSource(
+                    id = UUID.randomUUID().toString(),
+                    name = display,
+                    url = uri.toString(),
+                    enabled = true,
+                )
+            )
+            vm.refreshChannels()
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -82,7 +115,7 @@ fun SettingsScreen() {
         item {
             Card("IPTV / M3U playlists") {
                 Text(
-                    "Add one or more M3U playlist URLs. The Live TV tab merges channels from every enabled source. Each source can carry its own EPG (XMLTV), User-Agent, and Referer overrides for protected streams.",
+                    "Add an M3U playlist URL or pick an .m3u/.m3u8 file from your device. The Live TV tab merges channels from every enabled source. Each source can carry its own EPG (XMLTV), User-Agent, and Referer overrides for protected streams. The bundled \"World TV\" source auto-updates daily from iptv-org's free public list.",
                     color = Color(0xCCBFC4D6),
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -103,22 +136,37 @@ fun SettingsScreen() {
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        editing = PlaylistSource(
-                            id = UUID.randomUUID().toString(),
-                            name = "",
-                            url = "",
-                        )
-                    },
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                    ),
-                ) {
-                    Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.size(6.dp))
-                    Text("Add playlist", style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            editing = PlaylistSource(
+                                id = UUID.randomUUID().toString(),
+                                name = "",
+                                url = "",
+                            )
+                        },
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                        ),
+                    ) {
+                        Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.size(6.dp))
+                        Text("Add URL", style = MaterialTheme.typography.labelLarge)
+                    }
+                    FilledTonalButton(
+                        onClick = {
+                            // Most file managers don't register an explicit
+                            // MIME type for .m3u/.m3u8; allow */* with a
+                            // hint so HLS playlists are also reachable.
+                            pickFile.launch(arrayOf("*/*"))
+                        },
+                        shape = RoundedCornerShape(50),
+                    ) {
+                        Icon(Icons.Outlined.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.size(6.dp))
+                        Text("Pick from device", style = MaterialTheme.typography.labelLarge)
+                    }
                 }
             }
         }
@@ -126,7 +174,7 @@ fun SettingsScreen() {
         item {
             Card("Auto-refresh") {
                 Text(
-                    "Periodically re-fetch every enabled playlist and EPG in the background so the Live TV tab stays up to date.",
+                    "Auto-update every enabled playlist and EPG in the background so the Live TV tab always shows the latest channels. New installs default to every 12 hours.",
                     color = Color(0xCCBFC4D6),
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -180,11 +228,9 @@ fun SettingsScreen() {
             }
         }
 
-        item { PremiumCard() }
-
         item {
             Card("About") {
-                AboutRow("App", "TV APK • v2.0")
+                AboutRow("App", "TV APK • v3.0 Vibe")
                 AboutRow("Developer", stringResource(R.string.developer_name))
                 Row(
                     modifier = Modifier
@@ -251,7 +297,7 @@ private fun EmptySources() {
             style = MaterialTheme.typography.titleMedium,
         )
         Text(
-            "Tap “Add playlist” below and paste a legal IPTV M3U URL.",
+            "Tap “Add URL” to paste an M3U link or “Pick from device” to load an .m3u/.m3u8 file from your file manager.",
             color = Color(0xCCBFC4D6),
             style = MaterialTheme.typography.bodyMedium,
         )
@@ -295,8 +341,14 @@ private fun SourceRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            val display = when {
+                source.url.startsWith("content://") -> "Local file • " +
+                    (source.url.substringAfterLast('/').substringBefore('?').ifBlank { source.url })
+                source.url.startsWith("file://") -> "Local file • " + source.url.substringAfterLast('/')
+                else -> source.url
+            }
             Text(
-                source.url,
+                display,
                 color = Color(0xAABFC4D6),
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
@@ -511,31 +563,6 @@ private fun AboutRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Text(label, color = Color(0xAABFC4D6), modifier = Modifier.weight(1f))
         Text(value, color = Color.White)
-    }
-}
-
-@Composable
-private fun PremiumCard() {
-    val vm: AppViewModel = viewModel(factory = AppViewModel.Factory)
-    val premiumUntil by vm.premiumUntil.collectAsState()
-    val now = System.currentTimeMillis()
-    val isPremium = premiumUntil > now
-    val minsLeft = if (isPremium) ((premiumUntil - now) / 60_000).coerceAtLeast(0) else 0L
-    val context = androidx.compose.ui.platform.LocalContext.current
-
-    Card("Premium recording") {
-        Text(
-            if (isPremium) "Premium unlocked: ${minsLeft}m left."
-            else "Live-TV recording is locked. Watch a short ad to unlock recording for the next 30 minutes.",
-            color = if (isPremium) Color(0xFFFFD27A) else Color(0xCCBFC4D6),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Spacer(Modifier.height(10.dp))
-        PrimaryButton(text = if (isPremium) "Watch ad to extend +30 min" else "Watch ad to unlock") {
-            val activity = context as? android.app.Activity ?: return@PrimaryButton
-            val shown = vm.showRewardedAd(activity)
-            if (!shown) vm.preloadRewardedAd()
-        }
     }
 }
 

@@ -1,6 +1,7 @@
 package com.piashmsu.tvapk.data
 
 import android.content.Context
+import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -12,13 +13,21 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.File
 
 /**
  * Loads and merges channels from every enabled [PlaylistSource]. Sources are
  * fetched in parallel; if one source fails the others are still kept.
+ *
+ * Supports three URL schemes:
+ *  - `http://` / `https://` — fetched over the network (the common case).
+ *  - `content://` — read through Android's ContentResolver. Used by the
+ *    "Pick M3U from device" file picker so users can pull a playlist out
+ *    of any file-manager-accessible location.
+ *  - `file://` and bare absolute paths — read directly off disk.
  */
 class ChannelRepository(
-    @Suppress("UNUSED_PARAMETER") private val context: Context,
+    private val context: Context,
     private val http: OkHttpClient,
     private val prefs: AppPrefs,
 ) {
@@ -54,13 +63,31 @@ class ChannelRepository(
     }
 
     private fun fetchSource(source: PlaylistSource): List<Channel> {
-        val builder = Request.Builder().url(source.url)
-        builder.header("User-Agent", source.userAgent ?: "TVApk/1.0")
-        if (!source.referer.isNullOrBlank()) builder.header("Referer", source.referer)
-        http.newCall(builder.build()).execute().use { resp ->
-            if (!resp.isSuccessful) error("HTTP ${resp.code}")
-            val body = resp.body?.string().orEmpty()
-            return M3UParser.parse(body, source)
+        val body = readSource(source)
+        return M3UParser.parse(body, source)
+    }
+
+    private fun readSource(source: PlaylistSource): String {
+        val raw = source.url.trim()
+        return when {
+            raw.startsWith("content://", ignoreCase = true) -> {
+                val uri = Uri.parse(raw)
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+                    ?: error("Empty file (${source.name})")
+            }
+            raw.startsWith("file://", ignoreCase = true) -> {
+                File(Uri.parse(raw).path ?: error("Bad file URI")).readText(Charsets.UTF_8)
+            }
+            raw.startsWith("/") -> File(raw).readText(Charsets.UTF_8)
+            else -> {
+                val builder = Request.Builder().url(raw)
+                builder.header("User-Agent", source.userAgent ?: "TVApk/1.0")
+                if (!source.referer.isNullOrBlank()) builder.header("Referer", source.referer)
+                http.newCall(builder.build()).execute().use { resp ->
+                    if (!resp.isSuccessful) error("HTTP ${resp.code}")
+                    resp.body?.string().orEmpty()
+                }
+            }
         }
     }
 

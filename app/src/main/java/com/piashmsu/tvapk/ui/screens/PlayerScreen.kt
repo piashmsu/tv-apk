@@ -24,14 +24,12 @@ import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Stop
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -141,72 +139,6 @@ fun PlayerScreen(onBack: () -> Unit) {
     }
 
     val recordingState by RecordingService.state.collectAsState()
-    val premiumUntil by vm.premiumUntil.collectAsState()
-    val now = System.currentTimeMillis()
-    val isPremium = premiumUntil > now
-    var showUnlockDialog by remember { mutableStateOf(false) }
-    var pendingStartRecording by remember { mutableStateOf(false) }
-    val activity = context as? Activity
-
-    LaunchedEffect(isPremium, pendingStartRecording, current) {
-        if (pendingStartRecording && isPremium && current is PlaybackTarget.LiveChannel) {
-            RecordingService.start(
-                context,
-                RecordingArgs(
-                    streamUrl = current.streamUrl,
-                    title = current.title,
-                    userAgent = ua,
-                    referer = referer,
-                    extraHeaders = headers,
-                ),
-            )
-            pendingStartRecording = false
-        }
-    }
-
-    if (showUnlockDialog) {
-        val adState by vm.rewardedAdState.collectAsState()
-        AlertDialog(
-            onDismissRequest = { showUnlockDialog = false },
-            title = { Text("Unlock recording for 30 min") },
-            text = {
-                Text(
-                    "Watch a short ad to unlock live-TV recording for the next 30 minutes. " +
-                        "Recording is a premium feature — every ad you watch extends your unlock window.",
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = activity != null,
-                    onClick = {
-                        showUnlockDialog = false
-                        pendingStartRecording = true
-                        if (activity != null) {
-                            val shown = vm.showRewardedAd(activity) { _ -> }
-                            if (!shown) {
-                                vm.preloadRewardedAd()
-                                pendingStartRecording = false
-                            }
-                        }
-                    },
-                ) {
-                    val label = when (val s = adState) {
-                        is com.piashmsu.tvapk.ads.RewardedAdManager.AdState.Ready -> "Watch ad"
-                        is com.piashmsu.tvapk.ads.RewardedAdManager.AdState.Loading -> "Loading ad…"
-                        is com.piashmsu.tvapk.ads.RewardedAdManager.AdState.Showing -> "Showing…"
-                        is com.piashmsu.tvapk.ads.RewardedAdManager.AdState.Error -> "Retry (${s.message})"
-                        else -> "Watch ad"
-                    }
-                    Text(label)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showUnlockDialog = false }) { Text("Cancel") }
-            },
-        )
-    }
-
-    LaunchedEffect(Unit) { vm.preloadRewardedAd() }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
@@ -260,7 +192,7 @@ fun PlayerScreen(onBack: () -> Unit) {
                     onClick = {
                         if (recordingActive) {
                             RecordingService.stop(context)
-                        } else if (isPremium) {
+                        } else {
                             RecordingService.start(
                                 context,
                                 RecordingArgs(
@@ -271,8 +203,6 @@ fun PlayerScreen(onBack: () -> Unit) {
                                     extraHeaders = headers,
                                 ),
                             )
-                        } else {
-                            showUnlockDialog = true
                         }
                     },
                     colors = IconButtonDefaults.filledTonalIconButtonColors(
@@ -364,14 +294,6 @@ fun PlayerScreen(onBack: () -> Unit) {
                 Text(
                     "Recording saved → ${it.output}",
                     color = Color(0xFF8AE070),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
-            if (isPremium && current is PlaybackTarget.LiveChannel) {
-                val mins = ((premiumUntil - now) / 60_000).coerceAtLeast(0)
-                Text(
-                    "Premium unlocked: ${mins}m left",
-                    color = Color(0xFFFFD27A),
                     style = MaterialTheme.typography.labelMedium,
                 )
             }
