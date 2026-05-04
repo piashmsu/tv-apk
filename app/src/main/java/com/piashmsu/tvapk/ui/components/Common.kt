@@ -75,6 +75,8 @@ fun ChannelTile(
     isFavorite: Boolean = false,
     nowPlayingTitle: String? = null,
     onFavorite: (() -> Unit)? = null,
+    statusColor: Color? = null,
+    statusLabel: String? = null,
 ) {
     Column(
         modifier = modifier
@@ -131,10 +133,14 @@ fun ChannelTile(
                     .align(Alignment.TopEnd)
                     .padding(8.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.tertiary)
+                    .background(statusColor ?: MaterialTheme.colorScheme.tertiary)
                     .padding(horizontal = 8.dp, vertical = 3.dp),
             ) {
-                Text("LIVE", style = MaterialTheme.typography.labelSmall, color = Color.White)
+                Text(
+                    statusLabel ?: "LIVE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                )
             }
 
             if (onFavorite != null) {

@@ -1,6 +1,10 @@
 package com.piashmsu.tvapk
 
 import android.app.Application
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
 import com.piashmsu.tvapk.data.AppContainer
 import com.piashmsu.tvapk.work.PlaylistRefreshWorker
 import kotlinx.coroutines.CoroutineScope
@@ -9,7 +13,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-class TvApkApp : Application() {
+class TvApkApp : Application(), ImageLoaderFactory {
     lateinit var container: AppContainer
         private set
 
@@ -21,13 +25,28 @@ class TvApkApp : Application() {
         container = AppContainer(this)
 
         appScope.launch {
-            // Seed a default world-TV source on first launch.
             container.prefs.seedDefaultsIfNeeded()
-            // Apply the user-configured periodic refresh, if any.
             val interval = container.prefs.refreshInterval.first()
             PlaylistRefreshWorker.configure(this@TvApkApp, interval)
         }
     }
+
+    override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
+        .crossfade(true)
+        .okHttpClient { container.http }
+        .memoryCache {
+            MemoryCache.Builder(this)
+                .maxSizePercent(0.20)
+                .build()
+        }
+        .diskCache {
+            DiskCache.Builder()
+                .directory(cacheDir.resolve("image_cache"))
+                .maxSizeBytes(64L * 1024 * 1024)
+                .build()
+        }
+        .respectCacheHeaders(false)
+        .build()
 
     companion object {
         lateinit var instance: TvApkApp

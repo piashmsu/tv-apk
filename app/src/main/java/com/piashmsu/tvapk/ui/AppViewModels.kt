@@ -43,6 +43,8 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
     val channels = channelRepo.channels
     val movies = movieRepo.movies
     val epg = epgRepo.byChannel
+    val channelStatuses = channelRepo.statuses
+    val probeProgress = channelRepo.probeProgress
 
     init {
         viewModelScope.launch { channelRepo.refresh() }
@@ -99,6 +101,7 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
     fun refreshChannels() { viewModelScope.launch { channelRepo.refresh() } }
     fun refreshMovies() { viewModelScope.launch { movieRepo.refresh() } }
     fun refreshEpg() { viewModelScope.launch { epgRepo.refresh() } }
+    fun probeChannels() { viewModelScope.launch { channelRepo.probeReachability() } }
 
     companion object {
         val Factory = object : ViewModelProvider.Factory {

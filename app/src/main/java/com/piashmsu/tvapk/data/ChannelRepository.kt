@@ -10,10 +10,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 /**
  * Loads and merges channels from every enabled [PlaylistSource]. Sources are
@@ -37,11 +40,26 @@ class ChannelRepository(
     private val _channels = MutableStateFlow<List<Channel>>(emptyList())
     val channels: StateFlow<List<Channel>> = _channels.asStateFlow()
 
+    private val _statuses = MutableStateFlow<Map<String, ChannelStatus>>(emptyMap())
+    val statuses: StateFlow<Map<String, ChannelStatus>> = _statuses.asStateFlow()
+
+    private val _probeProgress = MutableStateFlow<ProbeProgress>(ProbeProgress.Idle)
+    val probeProgress: StateFlow<ProbeProgress> = _probeProgress.asStateFlow()
+
+    private val probeClient: OkHttpClient = http.newBuilder()
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(4, TimeUnit.SECONDS)
+        .callTimeout(5, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()
+
     suspend fun refresh(): Result<Int> = withContext(Dispatchers.IO) {
         val sources = prefs.playlistSources.first().filter { it.enabled && it.url.isNotBlank() }
         if (sources.isEmpty()) {
             _state.value = LoadState.Idle
             _channels.value = emptyList()
+            _statuses.value = emptyMap()
             return@withContext Result.failure(IllegalStateException("No playlist sources configured."))
         }
         _state.value = LoadState.Loading
@@ -58,8 +76,79 @@ class ChannelRepository(
         }
 
         _channels.value = merged
+        _statuses.value = emptyMap()
         _state.value = LoadState.Success(merged.size)
         Result.success(merged.size)
+    }
+
+    /**
+     * Probe the reachability of every loaded channel by issuing a short HEAD
+     * (falling back to a one-byte ranged GET) request and recording the
+     * outcome. Status is kept in memory only — refresh clears it.
+     *
+     * Probing is capped at 24 concurrent requests with a 5 s timeout each.
+     */
+    suspend fun probeReachability() = withContext(Dispatchers.IO) {
+        val list = _channels.value
+        if (list.isEmpty()) {
+            _probeProgress.value = ProbeProgress.Idle
+            return@withContext
+        }
+        val total = list.size
+        _probeProgress.value = ProbeProgress.Running(0, total)
+        val sem = Semaphore(24)
+        val results = HashMap<String, ChannelStatus>(total)
+        var done = 0
+        coroutineScope {
+            list.map { ch ->
+                async {
+                    sem.withPermit { results[ch.id] = probeOne(ch) }
+                    synchronized(this@ChannelRepository) {
+                        done += 1
+                        _probeProgress.value = ProbeProgress.Running(done, total)
+                        if (done % 32 == 0 || done == total) {
+                            _statuses.value = HashMap(results)
+                        }
+                    }
+                }
+            }.awaitAll()
+        }
+        _statuses.value = results
+        val online = results.count { it.value == ChannelStatus.Online }
+        val offline = results.count { it.value == ChannelStatus.Offline }
+        _probeProgress.value = ProbeProgress.Finished(online, offline, total)
+    }
+
+    private fun probeOne(channel: Channel): ChannelStatus {
+        val url = channel.streamUrl
+        if (url.isBlank()) return ChannelStatus.Offline
+        val raw = url.trim()
+        if (raw.startsWith("content://", true) || raw.startsWith("file://", true) || raw.startsWith("/")) {
+            return ChannelStatus.Online
+        }
+        return runCatching {
+            val builder = Request.Builder().url(raw).head()
+            builder.header("User-Agent", channel.httpUserAgent ?: "TVApk/1.0")
+            channel.httpReferer?.let { builder.header("Referer", it) }
+            for ((k, v) in channel.httpHeaders) builder.header(k, v)
+            probeClient.newCall(builder.build()).execute().use { resp ->
+                if (resp.isSuccessful) return ChannelStatus.Online
+                if (resp.code == 405 || resp.code == 501) probeRange(channel) else ChannelStatus.Offline
+            }
+        }.getOrElse {
+            runCatching { probeRange(channel) }.getOrDefault(ChannelStatus.Offline)
+        }
+    }
+
+    private fun probeRange(channel: Channel): ChannelStatus {
+        val builder = Request.Builder().url(channel.streamUrl)
+            .header("Range", "bytes=0-0")
+            .header("User-Agent", channel.httpUserAgent ?: "TVApk/1.0")
+        channel.httpReferer?.let { builder.header("Referer", it) }
+        for ((k, v) in channel.httpHeaders) builder.header(k, v)
+        return probeClient.newCall(builder.build()).execute().use { resp ->
+            if (resp.isSuccessful) ChannelStatus.Online else ChannelStatus.Offline
+        }
     }
 
     private fun fetchSource(source: PlaylistSource): List<Channel> {
@@ -91,18 +180,44 @@ class ChannelRepository(
         }
     }
 
-    fun groupedByCategory(query: String = ""): List<Category<Channel>> {
+    /**
+     * Group channels by category. When [hideOffline] is true, channels that
+     * have been *probed* and marked [ChannelStatus.Offline] are excluded —
+     * unprobed (Unknown) channels remain visible. When [onlyOffline] is
+     * true, only the offline group is returned (for the "Offline" tab).
+     */
+    fun groupedByCategory(
+        query: String = "",
+        hideOffline: Boolean = false,
+        onlyOffline: Boolean = false,
+    ): List<Category<Channel>> {
         val items = _channels.value
-        val filtered = if (query.isBlank()) items
-        else items.filter {
-            it.name.contains(query, ignoreCase = true) ||
-                it.group.contains(query, ignoreCase = true) ||
-                it.sourceName.contains(query, ignoreCase = true)
-        }
+        val statuses = _statuses.value
+        val filtered = items.asSequence()
+            .filter { ch ->
+                val matches = query.isBlank() ||
+                    ch.name.contains(query, true) ||
+                    ch.group.contains(query, true) ||
+                    ch.sourceName.contains(query, true)
+                if (!matches) return@filter false
+                val s = statuses[ch.id]
+                if (onlyOffline) s == ChannelStatus.Offline
+                else if (hideOffline) s != ChannelStatus.Offline
+                else true
+            }
+            .toList()
         return filtered.groupBy { it.group }
             .toSortedMap()
             .map { (g, list) -> Category(g, list.sortedBy { it.name }) }
     }
+}
+
+enum class ChannelStatus { Online, Offline }
+
+sealed interface ProbeProgress {
+    data object Idle : ProbeProgress
+    data class Running(val done: Int, val total: Int) : ProbeProgress
+    data class Finished(val online: Int, val offline: Int, val total: Int) : ProbeProgress
 }
 
 sealed interface LoadState {
