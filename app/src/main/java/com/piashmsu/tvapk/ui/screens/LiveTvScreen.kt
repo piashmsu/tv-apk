@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.NetworkCheck
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -63,7 +64,7 @@ private const val FAVORITES_GROUP = "★ Favorites"
 private enum class LiveTab { Online, Offline, All }
 
 @Composable
-fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
+fun LiveTvScreen(onChannelTap: (Channel) -> Unit, onEpgTimeline: (() -> Unit)? = null) {
     val vm: AppViewModel = viewModel(factory = AppViewModel.Factory)
     val channels by vm.channels.collectAsState()
     val state by vm.channelState.collectAsState()
@@ -87,6 +88,7 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
             isRefreshing = state is LoadState.Loading,
             onProbe = { vm.probeChannels() },
             isProbing = probe is ProbeProgress.Running,
+            onEpg = onEpgTimeline,
         )
 
         if (sources.isEmpty()) {
@@ -390,6 +392,7 @@ internal fun TopRow(
     isRefreshing: Boolean,
     onProbe: (() -> Unit)? = null,
     isProbing: Boolean = false,
+    onEpg: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -400,6 +403,23 @@ internal fun TopRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(title, color = Color.White, style = MaterialTheme.typography.headlineLarge)
             Text(subtitle, color = Color(0xCCBFC4D6), style = MaterialTheme.typography.labelMedium)
+        }
+        if (onEpg != null) {
+            IconButton(onClick = onEpg) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x33059669)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Outlined.CalendarToday,
+                        contentDescription = "EPG Timeline",
+                        tint = Color(0xFF22C55E),
+                    )
+                }
+            }
         }
         if (onProbe != null) {
             IconButton(onClick = onProbe, enabled = !isProbing) {

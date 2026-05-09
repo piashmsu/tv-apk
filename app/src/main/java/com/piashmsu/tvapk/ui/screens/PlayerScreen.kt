@@ -2,6 +2,7 @@ package com.piashmsu.tvapk.ui.screens
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -69,6 +70,7 @@ import androidx.media3.ui.PlayerView
 import com.piashmsu.tvapk.data.PlaybackTarget
 import com.piashmsu.tvapk.data.PlaybackTargetHolder
 import com.piashmsu.tvapk.data.RecentChannel
+import com.piashmsu.tvapk.MainActivity
 import com.piashmsu.tvapk.player.buildPlayerForUrl
 import com.piashmsu.tvapk.record.RecordingArgs
 import com.piashmsu.tvapk.record.RecordingService
@@ -158,6 +160,15 @@ fun PlayerScreen(onBack: () -> Unit) {
         }
     }
 
+    LaunchedEffect(isPlaying, current.title) {
+        val activity = context as? MainActivity ?: return@LaunchedEffect
+        if (isPlaying) {
+            activity.showPlaybackNotification(current.title, true)
+        } else {
+            activity.showPlaybackNotification(current.title, false)
+        }
+    }
+
     LaunchedEffect(controlsVisible, isPlaying, lastInteractionAt) {
         if (controlsVisible && isPlaying) {
             delay(CONTROL_HIDE_DELAY_MS)
@@ -222,6 +233,16 @@ fun PlayerScreen(onBack: () -> Unit) {
     }
 
     val recordingState by RecordingService.state.collectAsState()
+
+    val handleBack: () -> Unit = {
+        if (isPlaying) {
+            MainActivity.pipAware?.invoke(true)
+        } else {
+            onBack()
+        }
+    }
+
+    BackHandler(onBack = handleBack)
 
     fun touch() {
         controlsVisible = true
@@ -308,7 +329,7 @@ fun PlayerScreen(onBack: () -> Unit) {
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    FilledTonalIconButton(onClick = onBack) {
+                    FilledTonalIconButton(onClick = handleBack) {
                         Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
                     }
                     Spacer(Modifier.size(10.dp))
