@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
@@ -51,6 +53,8 @@ class ChannelRepository(
     private val _probeProgress = MutableStateFlow<ProbeProgress>(ProbeProgress.Idle)
     val probeProgress: StateFlow<ProbeProgress> = _probeProgress.asStateFlow()
 
+    private val refreshMutex = Mutex()
+
     private val probeClient: OkHttpClient = http.newBuilder()
         .cache(null)
         .dispatcher(
@@ -67,7 +71,8 @@ class ChannelRepository(
         .retryOnConnectionFailure(false)
         .build()
 
-    suspend fun refresh(): Result<Int> = withContext(Dispatchers.IO) {
+    suspend fun refresh(): Result<Int> = refreshMutex.withLock {
+        withContext(Dispatchers.IO) {
         val sources = prefs.playlistSources.first().filter { it.enabled && it.url.isNotBlank() }
         if (sources.isEmpty()) {
             _state.value = LoadState.Idle
@@ -94,6 +99,7 @@ class ChannelRepository(
         _statuses.value = prevStatuses.filterKeys { it in newIds }
         _state.value = LoadState.Success(merged.size)
         Result.success(merged.size)
+        }
     }
 
     /**

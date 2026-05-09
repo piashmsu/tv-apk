@@ -32,6 +32,8 @@ class MainActivity : ComponentActivity() {
         const val NOTIFICATION_ID_PLAYBACK = 1001
         @Volatile
         var pipAware: ((Boolean) -> Unit)? = null
+        @Volatile
+        var isPlayerActive = false
     }
 
     var isInPipMode = false
@@ -90,6 +92,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
+        if (isPlayerActive) {
+            enterPictureInPicture()
+        }
     }
 
     private fun createNotificationChannel() {

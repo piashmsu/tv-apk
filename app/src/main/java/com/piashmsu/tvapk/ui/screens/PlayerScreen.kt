@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material.icons.outlined.FastRewind
 import androidx.compose.material.icons.outlined.FiberManualRecord
 import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PictureInPicture
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Stop
@@ -205,6 +206,14 @@ fun PlayerScreen(onBack: () -> Unit) {
         }
     }
 
+    DisposableEffect(Unit) {
+        MainActivity.isPlayerActive = true
+        onDispose {
+            MainActivity.isPlayerActive = false
+            (context as? MainActivity)?.cancelPlaybackNotification()
+        }
+    }
+
     EnterImmersive()
 
     DisposableEffect(player) {
@@ -235,11 +244,7 @@ fun PlayerScreen(onBack: () -> Unit) {
     val recordingState by RecordingService.state.collectAsState()
 
     val handleBack: () -> Unit = {
-        if (isPlaying) {
-            MainActivity.pipAware?.invoke(true)
-        } else {
-            onBack()
-        }
+        onBack()
     }
 
     BackHandler(onBack = handleBack)
@@ -398,6 +403,19 @@ fun PlayerScreen(onBack: () -> Unit) {
                         ),
                     ) {
                         Icon(Icons.Outlined.AspectRatio, contentDescription = "Aspect ratio")
+                    }
+                    Spacer(Modifier.size(6.dp))
+                    FilledTonalIconButton(
+                        onClick = {
+                            MainActivity.pipAware?.invoke(true)
+                            touch()
+                        },
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = Color(0x99000000),
+                            contentColor = Color.White,
+                        ),
+                    ) {
+                        Icon(Icons.Outlined.PictureInPicture, contentDescription = "Picture in Picture")
                     }
                     Spacer(Modifier.size(6.dp))
 
