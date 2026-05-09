@@ -126,7 +126,7 @@ fun EpgTimelineScreen(onBack: () -> Unit, onChannelTap: (Channel) -> Unit) {
                     val startMs = (p.start - gridStart).coerceAtLeast(0)
                     val endMs = (p.end - gridStart).coerceAtMost(gridEnd - gridStart)
                     val startCol = (startMs / slotMs).toInt()
-                    val widthCols = ((endMs / slotMs) - startCol).coerceAtLeast(1)
+                    val widthCols = ((endMs / slotMs) - startCol).coerceAtLeast(1L).toInt()
                     TimelineProgramme(
                         channelId = ch.id,
                         channelName = ch.name,
@@ -320,6 +320,7 @@ private fun ProgrammeBlock(
     totalCols: Int,
 ) {
     val slotW = HOUR_WIDTH_DP / 12
+    val density = LocalDensity.current
     val bgColor = when {
         isLive -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
         startCol % 3 == 0 -> Color(0xFF1A2F5A)
@@ -332,7 +333,7 @@ private fun ProgrammeBlock(
     }
     Box(
         modifier = Modifier
-            .offset { IntOffset(x = (startCol * slotW.value * LocalDensity.current.density).toInt(), y = 0) }
+            .offset { IntOffset(x = (startCol * slotW.value * density.density).toInt(), y = 0) }
             .width(slotW * widthCols)
             .height(ROW_HEIGHT_DP)
             .padding(horizontal = 2.dp, vertical = 3.dp)
