@@ -47,7 +47,12 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
     val probeProgress = channelRepo.probeProgress
 
     init {
-        viewModelScope.launch { channelRepo.refresh() }
+        viewModelScope.launch {
+            channelRepo.refresh()
+            if (channelRepo.statuses.value.isEmpty()) {
+                channelRepo.probeReachability()
+            }
+        }
         viewModelScope.launch { movieRepo.refresh() }
         viewModelScope.launch { epgRepo.refresh() }
     }

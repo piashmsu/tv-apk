@@ -55,12 +55,12 @@ class ChannelRepository(
         .cache(null)
         .dispatcher(
             Dispatcher().apply {
-                maxRequests = 16
-                maxRequestsPerHost = 4
+                maxRequests = 20
+                maxRequestsPerHost = 6
             },
         )
-        .connectTimeout(4, TimeUnit.SECONDS)
-        .readTimeout(4, TimeUnit.SECONDS)
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(3, TimeUnit.SECONDS)
         .callTimeout(6, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
@@ -88,8 +88,10 @@ class ChannelRepository(
             return@withContext Result.failure(IllegalStateException(errors.joinToString(" • ")))
         }
 
+        val prevStatuses = _statuses.value
         _channels.value = merged
-        _statuses.value = emptyMap()
+        val newIds = merged.map { it.id }.toSet()
+        _statuses.value = prevStatuses.filterKeys { it in newIds }
         _state.value = LoadState.Success(merged.size)
         Result.success(merged.size)
     }
@@ -119,7 +121,7 @@ class ChannelRepository(
         val done = AtomicInteger(0)
 
         list.asFlow()
-            .flatMapMerge(concurrency = 12) { ch ->
+            .flatMapMerge(concurrency = 16) { ch ->
                 flow {
                     val status = runCatching { probeOne(ch) }
                         .getOrDefault(ChannelStatus.Offline)
