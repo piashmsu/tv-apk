@@ -48,13 +48,15 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
 
     init {
         viewModelScope.launch {
-            channelRepo.refresh()
-            if (channelRepo.statuses.value.isEmpty()) {
-                channelRepo.probeReachability()
+            runCatching { channelRepo.refresh() }
+            runCatching {
+                if (channelRepo.statuses.value.isEmpty()) {
+                    channelRepo.probeReachability()
+                }
             }
         }
-        viewModelScope.launch { movieRepo.refresh() }
-        viewModelScope.launch { epgRepo.refresh() }
+        viewModelScope.launch { runCatching { movieRepo.refresh() } }
+        viewModelScope.launch { runCatching { epgRepo.refresh() } }
     }
 
     fun saveMovieCatalogUrl(url: String) {
@@ -66,25 +68,25 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
 
     fun upsertPlaylistSource(source: PlaylistSource) {
         viewModelScope.launch {
-            prefs.upsertPlaylistSource(source)
-            channelRepo.refresh()
-            epgRepo.refresh()
+            runCatching { prefs.upsertPlaylistSource(source) }
+            runCatching { channelRepo.refresh() }
+            runCatching { epgRepo.refresh() }
         }
     }
 
     fun togglePlaylistEnabled(source: PlaylistSource) {
         viewModelScope.launch {
-            prefs.upsertPlaylistSource(source.copy(enabled = !source.enabled))
-            channelRepo.refresh()
-            epgRepo.refresh()
+            runCatching { prefs.upsertPlaylistSource(source.copy(enabled = !source.enabled)) }
+            runCatching { channelRepo.refresh() }
+            runCatching { epgRepo.refresh() }
         }
     }
 
     fun removePlaylistSource(id: String) {
         viewModelScope.launch {
-            prefs.removePlaylistSource(id)
-            channelRepo.refresh()
-            epgRepo.refresh()
+            runCatching { prefs.removePlaylistSource(id) }
+            runCatching { channelRepo.refresh() }
+            runCatching { epgRepo.refresh() }
         }
     }
 

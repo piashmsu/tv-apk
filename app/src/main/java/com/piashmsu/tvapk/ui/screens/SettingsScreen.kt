@@ -101,7 +101,6 @@ fun SettingsScreen() {
                     enabled = true,
                 )
             )
-            vm.refreshChannels()
         }
     }
 
