@@ -59,13 +59,13 @@ class ChannelRepository(
         .cache(null)
         .dispatcher(
             Dispatcher().apply {
-                maxRequests = 20
-                maxRequestsPerHost = 6
+                maxRequests = 28
+                maxRequestsPerHost = 8
             },
         )
-        .connectTimeout(3, TimeUnit.SECONDS)
-        .readTimeout(3, TimeUnit.SECONDS)
-        .callTimeout(6, TimeUnit.SECONDS)
+        .connectTimeout(2, TimeUnit.SECONDS)
+        .readTimeout(2, TimeUnit.SECONDS)
+        .callTimeout(5, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
         .retryOnConnectionFailure(false)
@@ -127,7 +127,7 @@ class ChannelRepository(
         val done = AtomicInteger(0)
 
         list.asFlow()
-            .flatMapMerge(concurrency = 16) { ch ->
+            .flatMapMerge(concurrency = 20) { ch ->
                 flow {
                     val status = runCatching { probeOne(ch) }
                         .getOrDefault(ChannelStatus.Offline)
