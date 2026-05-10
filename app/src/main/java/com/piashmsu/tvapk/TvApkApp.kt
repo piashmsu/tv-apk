@@ -28,6 +28,8 @@ class TvApkApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        DebugLog.init(this)
+        DebugLog.log("App started")
         container = AppContainer(this)
 
         appScope.launch {

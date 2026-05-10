@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import com.piashmsu.tvapk.DebugLog
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -73,6 +74,7 @@ class ChannelRepository(
 
     suspend fun refresh(): Result<Int> = refreshMutex.withLock {
         withContext(Dispatchers.IO) {
+        DebugLog.log("Refresh started")
         val sources = prefs.playlistSources.first().filter { it.enabled && it.url.isNotBlank() }
         if (sources.isEmpty()) {
             _state.value = LoadState.Idle
@@ -98,6 +100,7 @@ class ChannelRepository(
         val newIds = merged.map { it.id }.toSet()
         _statuses.value = prevStatuses.filterKeys { it in newIds }
         _state.value = LoadState.Success(merged.size)
+        DebugLog.log("Refresh done: ${merged.size} channels loaded")
         Result.success(merged.size)
         }
     }
@@ -116,37 +119,46 @@ class ChannelRepository(
      */
     @Suppress("OPT_IN_USAGE")
     suspend fun probeReachability() = withContext(Dispatchers.IO) {
-        val list = _channels.value
-        if (list.isEmpty()) {
-            _probeProgress.value = ProbeProgress.Idle
-            return@withContext
-        }
-        val total = list.size
-        _probeProgress.value = ProbeProgress.Running(0, total)
-        val results = ConcurrentHashMap<String, ChannelStatus>(total)
-        val done = AtomicInteger(0)
-
-        list.asFlow()
-            .flatMapMerge(concurrency = 20) { ch ->
-                flow {
-                    val status = runCatching { probeOne(ch) }
-                        .getOrDefault(ChannelStatus.Offline)
-                    emit(ch.id to status)
-                }.flowOn(Dispatchers.IO)
+        runCatching {
+            val list = _channels.value
+            DebugLog.log("Probe started: ${list.size} channels")
+            if (list.isEmpty()) {
+                _probeProgress.value = ProbeProgress.Idle
+                return@runCatching
             }
-            .collect { (id, status) ->
-                results[id] = status
-                val n = done.incrementAndGet()
-                _probeProgress.value = ProbeProgress.Running(n, total)
-                if (n % 64 == 0 || n == total) {
-                    _statuses.value = HashMap(results)
+            val total = list.size.coerceAtMost(50000)
+            _probeProgress.value = ProbeProgress.Running(0, total)
+            val results = ConcurrentHashMap<String, ChannelStatus>(total)
+            val done = AtomicInteger(0)
+
+            list.take(50000).asFlow()
+                .flatMapMerge(concurrency = 20) { ch ->
+                    flow {
+                        val id = ch.id.ifBlank { "unknown" }
+                        val status = runCatching { probeOne(ch) }
+                            .onFailure { DebugLog.log("Probe fail for ${ch.name}: ${it.message}") }
+                            .getOrDefault(ChannelStatus.Offline)
+                        emit(id to status)
+                    }.flowOn(Dispatchers.IO)
                 }
-            }
+                .collect { (id, status) ->
+                    results[id] = status
+                    val n = done.incrementAndGet()
+                    runCatching { _probeProgress.value = ProbeProgress.Running(n, total) }
+                    if (n % 64 == 0 || n == total) {
+                        runCatching { _statuses.value = HashMap(results) }
+                    }
+                }
 
-        _statuses.value = HashMap(results)
-        val online = results.count { it.value == ChannelStatus.Online }
-        val offline = results.count { it.value == ChannelStatus.Offline }
-        _probeProgress.value = ProbeProgress.Finished(online, offline, total)
+            runCatching { _statuses.value = HashMap(results) }
+            val online = results.count { it.value == ChannelStatus.Online }
+            val offline = results.count { it.value == ChannelStatus.Offline }
+            runCatching { _probeProgress.value = ProbeProgress.Finished(online, offline, total) }
+            DebugLog.log("Probe finished: $online online, $offline offline of $total")
+        }.onFailure { e ->
+            DebugLog.logError("probeReachability", e)
+            runCatching { _probeProgress.value = ProbeProgress.Idle }
+        }
     }
 
     private fun probeOne(channel: Channel): ChannelStatus {

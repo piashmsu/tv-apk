@@ -16,6 +16,7 @@ import com.piashmsu.tvapk.work.PlaylistRefreshWorker
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.piashmsu.tvapk.DebugLog
 
 class AppViewModel(private val container: AppContainer) : ViewModel() {
 
@@ -47,10 +48,12 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
     val probeProgress = channelRepo.probeProgress
 
     init {
+        DebugLog.log("ViewModel init")
         viewModelScope.launch {
             runCatching { channelRepo.refresh() }
             runCatching {
                 if (channelRepo.statuses.value.isEmpty()) {
+                    DebugLog.log("Auto-probe trigger from init")
                     channelRepo.probeReachability()
                 }
             }
