@@ -175,21 +175,15 @@ Upload your 3 screenshots to the repo root:
 
 ---
 
-## 📱 Install
+## 📱 Download
 
 <p align="center">
-  <a href="https://github.com/piashmsu/tv-apk/actions">
-    <img src="https://img.shields.io/badge/Télécharger-Dernier_APK-success?style=for-the-badge&logo=android" />
+  <a href="https://github.com/piashmsuf-eng/tv-apk/releases/download/v5.0-vibe/tv-apk-v5.0-vibe.apk">
+    <img src="https://img.shields.io/badge/⬇️_Download_APK-v5.0_Vibe-brightgreen?style=for-the-badge&logo=android" />
   </a>
+  <br>
+  <sub>23 MB • Android 6.0+ • All Features Unlocked</sub>
 </p>
-
-### Option 1 — Download Pre-built APK
-1. Go to [GitHub Actions](https://github.com/piashmsu/tv-apk/actions)
-2. Click the latest successful build
-3. Scroll down to **Artifacts**
-4. Download `tv-apk-release-*.apk` or `tv-apk-debug-*.apk`
-
-### Option 2 — Build Yourself
 ```bash
 git clone https://github.com/piashmsu/tv-apk.git
 cd tv-apk
