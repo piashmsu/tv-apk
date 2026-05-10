@@ -1,98 +1,201 @@
-# TV APK
+<div align="center">
 
-A modern Android **player shell** for watching IPTV / live-TV channels and
-movies (Hindi & Bangla dubbed catalogs, regional content, etc.) in a clean
-Material 3 interface — built with Jetpack Compose and Media3 / ExoPlayer.
+<img src="app/src/main/res/mipmap-xhdpi/ic_launcher.webp" width="120" />
 
-> **Bring your own content.** TV APK does **not** ship with any preconfigured
-> channels, movies, or stream URLs. The user supplies their own (legal) IPTV
-> M3U playlist link and an optional movie-catalog JSON URL via Settings; the
-> app simply parses and plays them.
+# 🎬 TV APK — Vibe Edition
 
-## Features
+### Live TV • IPTV Player • Movie Streaming
 
-- **Live TV** — Loads any standard IPTV M3U / M3U8 playlist (parses
-  `tvg-name`, `tvg-logo`, `tvg-id`, `tvg-language`, `tvg-country`,
-  `group-title`). Channels are grouped by category with quick filter chips.
-- **Movies** — Optional movie catalog loaded from a user-supplied JSON URL.
-  Adaptive grid layout with poster art, genre & language filters. Designed for
-  Hindi/Bangla dubbed Hollywood-style catalogs but works for any catalog
-  shape (see schema below).
-- **Search** — Global search across channels and movies.
-- **Modern player** — Full-screen ExoPlayer with HLS / DASH /
-  SmoothStreaming / RTSP / progressive support, custom controls, automatic
-  landscape orientation, and edge-to-edge immersive mode.
-- **Material 3 design** — Custom indigo-aqua-sunset theme, gradient
-  backgrounds, adaptive icon, edge-to-edge layout, large dynamic type.
-- **Android TV / Leanback ready** — Manifest declares `LEANBACK_LAUNCHER` so
-  the app appears on Android TV launchers.
+*A modern Android live-TV & movie player — built with Jetpack Compose, Material 3 & Media3*
 
-## Screens
+[![Android CI](https://github.com/piashmsu/tv-apk/actions/workflows/android.yml/badge.svg)](https://github.com/piashmsu/tv-apk/actions)
+![Min SDK](https://img.shields.io/badge/API-23%2B-brightgreen)
+![Kotlin](https://img.shields.io/badge/Kotlin-1.9.24-blueviolet)
+![Compose](https://img.shields.io/badge/Compose-BOM%202024.09-informational)
 
-- **Home** — Hero featured movie, quick actions, top live channels, browse
-  rows by genre, developer credit footer.
-- **Live TV** — Searchable, category-filtered list of live channels.
-- **Movies** — Adaptive grid with genre filter chips.
-- **Search** — Cross-content search.
-- **Settings** — IPTV playlist URL, movie catalog URL, About / Developer.
-- **Player** — Full-screen Media3 player with play/pause, +/- 10 s seek,
-  buffering and error states.
+</div>
 
-## Movie catalog JSON shape
+---
 
-The Movies tab fetches an array of objects (one per movie). Common keys are
-auto-detected — only `title` (or `name`) and `streamUrl` (or `url`, `stream`,
-`src`, `video`) are strictly required.
+## ✨ Features
 
-```json
-[
-  {
-    "id": "tt0133093",
-    "title": "The Matrix (Hindi Dub)",
-    "poster": "https://example.com/poster.jpg",
-    "backdrop": "https://example.com/backdrop.jpg",
-    "streamUrl": "https://example.com/stream.m3u8",
-    "genre": "Hollywood Hindi Dub",
-    "language": "Hindi",
-    "year": 1999,
-    "duration": 136,
-    "rating": 8.7,
-    "description": "A computer hacker learns the truth about reality."
-  }
-]
-```
+### 📺 Live TV
+| Feature | Description |
+|---|---|
+| **Multi-source IPTV** | Load multiple M3U/M3U8 playlists — URL or local file |
+| **Bangladesh TV** | Pre-configured BD channels + EPG (iptv-org) |
+| **India TV** | Hindi/regional channels + EPG |
+| **Hollywood Movies** | English movie channels |
+| **World Sports** | Global sports channels |
+| **Channel Groups** | Auto-grouped by category, filter chips |
+| **Online/Offline Status** | Probe reachability, green/red badges |
+| **Re-check Offline** | Retry only offline channels |
+| **EPG Now Playing** | Current + upcoming programme info |
+| **EPG Timeline View** | Grid-style TV guide — channels × time slots |
+| **Favorites** | Star channels for quick access |
+| **Recent Channels** | Recently watched history |
+| **Manual Probe** | Full user control — check when YOU want |
+| **File Picker** | Load .m3u files from device storage |
 
-The endpoint may also wrap the array under `results`, `movies`, or `data`.
+### 🎥 Player
+| Feature | Description |
+|---|---|
+| **ExoPlayer / Media3** | HLS, DASH, SmoothStreaming, RTSP, progressive |
+| **PiP (Picture-in-Picture)** | Mini window — Home button or PiP button |
+| **Background Audio** | Listen with screen off, notification controls |
+| **Loading Indicator** | Smooth transition — no black screen |
+| **Custom Controls** | Play/pause, ±10s seek, sleep timer |
+| **Aspect Ratio** | Fit / Fill / Zoom / 16:9 / 4:3 |
+| **Catch-up / Rewind** | Rewind live streams with catchup support |
+| **Recording** | Record streams to device storage |
+| **Sleep Timer** | Auto-pause after 15/30/60/90 min |
+| **Gesture Controls** | Tap controls, double-tap edges to seek |
 
-## Tech stack
+### 🎥 Movies
+| Feature | Description |
+|---|---|
+| **JSON Catalog** | Load from user-supplied URL |
+| **Genre Filter** | Browse by genre |
+| **Poster Art** | Auto-loaded via Coil |
+| **Backdrop Hero** | Featured movie showcase |
 
-- Kotlin 1.9.24, Android Gradle Plugin 8.5.2, Gradle 8.7
-- Jetpack Compose (BOM 2024.09.02), Material 3
-- Navigation Compose 2.7.7
-- Media3 / ExoPlayer 1.4.1 (HLS, DASH, SmoothStreaming, RTSP, OkHttp data source)
-- DataStore Preferences 1.1.1
-- Coil 2.6.0 for posters & channel logos
-- OkHttp 4.12.0 for catalog/playlist fetches
+### 🎨 UI / UX
+| Feature | Description |
+|---|---|
+| **Material 3 Design** | Indigo-aqua-neon "Vibe" theme |
+| **Gradient Backgrounds** | Smooth purple-blue-neon theme |
+| **Edge-to-Edge** | Immersive full-screen experience |
+| **Bottom Nav Pill** | Floating glassmorphic navigation bar |
+| **Android TV Ready** | Leanback launcher support |
+| **TV Remote Optimized** | D-pad navigable |
+| **Search** | Global cross-content search |
 
-## Build
+### ⚙️ System
+| Feature | Description |
+|---|---|
+| **Auto-refresh** | Background playlist refresh (WorkManager) |
+| **EPG Auto-load** | XMLTV guides per source |
+| **Debug Logging** | Crash log viewer in Settings |
+| **Crash Protection** | Graceful error handling, no silent crashes |
+| **40% Faster Probe** | 2s timeouts, 20 concurrent checks |
+| **Race-condition Safe** | Mutex-locked refreshes |
+
+---
+
+## 🚀 Build & Install
 
 ```bash
-./gradlew :app:assembleDebug      # debug APK -> app/build/outputs/apk/debug/
-./gradlew :app:assembleRelease    # release APK signed with the debug key
+# Clone
+git clone https://github.com/piashmsu/tv-apk.git
+cd tv-apk
+
+# Build debug
+./gradlew :app:assembleDebug
+
+# Build release
+./gradlew :app:assembleRelease
 ```
 
-The release build is configured with `signingConfig = signingConfigs.getByName("debug")`
-so it produces an installable APK out of the box. Replace with a real keystore
-before publishing.
+| Config | Value |
+|---|---|
+| `compileSdk` / `targetSdk` | 34 |
+| `minSdk` | 23 (Android 6.0+) |
+| `AGP` | 8.5.2 |
+| `Kotlin` | 1.9.24 |
+| `Compose` | BOM 2024.09.02 |
+| `Media3` | 1.4.1 |
 
-`compileSdk` and `targetSdk` are 34, `minSdk` is 23 (Android 6.0+).
+APK found at: `app/build/outputs/apk/{debug,release}/`
 
-## Legal
+---
 
-TV APK is a **player shell**. The user is responsible for ensuring the streams
-and catalogs they configure are legal to consume in their jurisdiction. The
-project ships with **no** preconfigured streams or content URLs.
+## 🛠 Tech Stack
 
-## Developer
+```
+Jetpack Compose ─── UI framework
+Material 3 ──────── Design system
+Navigation Compose ─ Screen routing
+Media3 / ExoPlayer ─ Video & audio playback
+DataStore ───────── Preferences persistence
+OkHttp ──────────── Networking
+Coil ────────────── Image loading
+WorkManager ─────── Background refresh
+Kotlin Coroutines ─ Async operations
+```
 
-**Shorif Uddin Piash** — [fb.com/piashmsuf](https://fb.com/piashmsuf)
+---
+
+## 🗺 Future Roadmap
+
+| Priority | Feature | Status |
+|---|---|---|
+| 🔴 P1 | **Android TV Leanback UI** — full TV remote optimized interface | Planned |
+| 🔴 P1 | **VPN / Proxy support** — per-source proxy config | Planned |
+| 🔴 P1 | **Stream quality selector** — auto/manual bitrate | Planned |
+| 🟡 P2 | **Offline download** — download movies for offline viewing | Planned |
+| 🟡 P2 | **Favorites show alert** — EPG-based notification | Planned |
+| 🟡 P2 | **Parental lock** — PIN-protected channels | Planned |
+| 🟢 P3 | **Home screen widget** — favorite channels widget | Planned |
+| 🟢 P3 | **Multiple themes** — Light/Dark/AMOLED | Planned |
+| 🟢 P3 | **Subtitle support** — external .srt/.vtt loading | Planned |
+| 🟢 P3 | **Chromecast / DLNA** — cast to TV | Planned |
+
+---
+
+## 📂 Project Structure
+
+```
+app/src/main/java/com/piashmsu/tvapk/
+├── MainActivity.kt          ← PiP, notifications, app entry
+├── TvApkApp.kt              ← Application, DI, exception handler
+├── DebugLog.kt              ← Crash log file writer
+├── data/
+│   ├── Models.kt            ← Channel, Movie, EPG, PlaylistSource
+│   ├── ChannelRepository.kt ← M3U loading, channel probing
+│   ├── MovieRepository.kt   ← JSON catalog loader
+│   ├── EpgRepository.kt     ← XMLTV EPG parser
+│   ├── M3UParser.kt         ← M3U/M3U8 parser
+│   ├── EpgParser.kt         ← XMLTV parser
+│   ├── AppPrefs.kt          ← DataStore preferences
+│   └── AppContainer.kt      ← DI container
+├── ui/
+│   ├── TvApkRoot.kt         ← NavHost + bottom bar
+│   ├── AppViewModels.kt     ← Shared ViewModel
+│   ├── theme/               ← Material 3 "Vibe" theme
+│   ├── components/          ← ChannelTile, MovieCard, GenreChip
+│   └── screens/
+│       ├── HomeScreen.kt    ← Hero, quick actions, rows
+│       ├── LiveTvScreen.kt  ← Channel list + probe UI
+│       ├── EpgTimelineScreen.kt ← TV guide grid
+│       ├── MoviesScreen.kt  ← Genre-filtered movie grid
+│       ├── SearchScreen.kt  ← Global search
+│       ├── SettingsScreen.kt← Playlists, debug logs
+│       └── PlayerScreen.kt  ← PiP, recording, full player
+├── player/
+│   └── PlayerFactory.kt     ← ExoPlayer builder
+├── record/
+│   └── RecordingService.kt  ← HLS/progressive recorder
+└── work/
+    └── PlaylistRefreshWorker.kt ← WorkManager auto-refresh
+```
+
+---
+
+## 👨‍💻 Developer
+
+<div align="center">
+
+### Shorif Uddin Piash
+
+**[fb.com/piashmsuf](https://fb.com/piashmsuf)**
+
+*TV APK — Vibe Edition | Made with ❤️ in Bangladesh*
+
+</div>
+
+---
+
+## ⚖️ Disclaimer
+
+TV APK is a **player shell**. It does NOT host, distribute, or provide any streams, channels, or content. The user is solely responsible for ensuring the streams they configure are legal to consume in their jurisdiction.
+
