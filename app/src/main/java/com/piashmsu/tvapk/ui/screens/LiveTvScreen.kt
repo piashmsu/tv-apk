@@ -129,29 +129,33 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit, onEpgTimeline: (() -> Unit)? =
 
         val baseGroups: List<Category<Channel>> by remember(channels, query, statuses, tab) {
             derivedStateOf {
-                vm.channelRepo.groupedByCategory(
-                    query = query,
-                    hideOffline = anyProbed && tab == LiveTab.Online,
-                    onlyOffline = anyProbed && tab == LiveTab.Offline,
-                )
+                runCatching {
+                    vm.channelRepo.groupedByCategory(
+                        query = query,
+                        hideOffline = anyProbed && tab == LiveTab.Online,
+                        onlyOffline = anyProbed && tab == LiveTab.Offline,
+                    )
+                }.getOrDefault(emptyList())
             }
         }
         val favCategory by remember(channels, favorites, query, statuses, tab) {
             derivedStateOf {
-                if (tab == LiveTab.Offline) return@derivedStateOf null
-                val favList = channels.asSequence()
-                    .filter { it.id in favorites }
-                    .filter {
-                        val matches = query.isBlank() ||
-                            it.name.contains(query, true) ||
-                            it.group.contains(query, true)
-                        if (!matches) return@filter false
-                        if (anyProbed && tab == LiveTab.Online) statuses[it.id] != ChannelStatus.Offline
-                        else true
-                    }
-                    .sortedBy { it.name }
-                    .toList()
-                if (favList.isEmpty()) null else Category(FAVORITES_GROUP, favList)
+                runCatching {
+                    if (tab == LiveTab.Offline) return@derivedStateOf null
+                    val favList = channels.asSequence()
+                        .filter { it.id in favorites }
+                        .filter {
+                            val matches = query.isBlank() ||
+                                it.name.contains(query, true) ||
+                                it.group.contains(query, true)
+                            if (!matches) return@filter false
+                            if (anyProbed && tab == LiveTab.Online) statuses[it.id] != ChannelStatus.Offline
+                            else true
+                        }
+                        .sortedBy { it.name }
+                        .toList()
+                    if (favList.isEmpty()) null else Category(FAVORITES_GROUP, favList)
+                }.getOrNull()
             }
         }
         val groups = listOfNotNull(favCategory) + baseGroups

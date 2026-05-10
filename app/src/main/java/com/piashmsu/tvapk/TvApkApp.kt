@@ -1,12 +1,14 @@
 package com.piashmsu.tvapk
 
 import android.app.Application
+import android.util.Log
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.piashmsu.tvapk.data.AppContainer
 import com.piashmsu.tvapk.work.PlaylistRefreshWorker
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,7 +19,11 @@ class TvApkApp : Application(), ImageLoaderFactory {
     lateinit var container: AppContainer
         private set
 
-    private val appScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        Log.e("TvApk", "Unhandled coroutine exception", throwable)
+    }
+
+    private val appScope = CoroutineScope(Dispatchers.Default + SupervisorJob() + exceptionHandler)
 
     override fun onCreate() {
         super.onCreate()
@@ -25,9 +31,11 @@ class TvApkApp : Application(), ImageLoaderFactory {
         container = AppContainer(this)
 
         appScope.launch {
-            container.prefs.seedDefaultsIfNeeded()
-            val interval = container.prefs.refreshInterval.first()
-            PlaylistRefreshWorker.configure(this@TvApkApp, interval)
+            runCatching { container.prefs.seedDefaultsIfNeeded() }
+            runCatching {
+                val interval = container.prefs.refreshInterval.first()
+                PlaylistRefreshWorker.configure(this@TvApkApp, interval)
+            }
         }
     }
 

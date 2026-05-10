@@ -112,31 +112,33 @@ fun EpgTimelineScreen(onBack: () -> Unit, onChannelTap: (Channel) -> Unit) {
 
     val timeline by remember(channelList, epg, now) {
         derivedStateOf {
-            val gridStart = hours.first()
-            val gridEnd = hours.last() + 3600_000L
-            val slotMs = 5 * 60 * 1000L
-            val totalCols = ((gridEnd - gridStart) / slotMs).toInt()
+            runCatching {
+                val gridStart = hours.first()
+                val gridEnd = hours.last() + 3600_000L
+                val slotMs = 5 * 60 * 1000L
+                val totalCols = ((gridEnd - gridStart) / slotMs).toInt()
 
-            channelList.flatMap { ch ->
-                val tvgId = ch.tvgId.orEmpty()
-                val programmes = epg[tvgId].orEmpty().filter { p ->
-                    p.start < gridEnd && p.end > gridStart
+                channelList.flatMap { ch ->
+                    val tvgId = ch.tvgId.orEmpty()
+                    val programmes = epg[tvgId].orEmpty().filter { p ->
+                        p.start < gridEnd && p.end > gridStart
+                    }
+                    programmes.map { p ->
+                        val startMs = (p.start - gridStart).coerceAtLeast(0)
+                        val endMs = (p.end - gridStart).coerceAtMost(gridEnd - gridStart)
+                        val startCol = (startMs / slotMs).toInt()
+                        val widthCols = ((endMs / slotMs) - startCol).coerceAtLeast(1L).toInt()
+                        TimelineProgramme(
+                            channelId = ch.id,
+                            channelName = ch.name,
+                            channelLogo = ch.logo,
+                            programme = p,
+                            startCol = startCol,
+                            widthCols = widthCols,
+                        )
+                    }
                 }
-                programmes.map { p ->
-                    val startMs = (p.start - gridStart).coerceAtLeast(0)
-                    val endMs = (p.end - gridStart).coerceAtMost(gridEnd - gridStart)
-                    val startCol = (startMs / slotMs).toInt()
-                    val widthCols = ((endMs / slotMs) - startCol).coerceAtLeast(1L).toInt()
-                    TimelineProgramme(
-                        channelId = ch.id,
-                        channelName = ch.name,
-                        channelLogo = ch.logo,
-                        programme = p,
-                        startCol = startCol,
-                        widthCols = widthCols,
-                    )
-                }
-            }
+            }.getOrDefault(emptyList())
         }
     }
 
@@ -321,6 +323,8 @@ private fun ProgrammeBlock(
 ) {
     val slotW = HOUR_WIDTH_DP / 12
     val density = LocalDensity.current
+    val safeStartCol = startCol.coerceIn(0, Int.MAX_VALUE)
+    val safeWidthCols = widthCols.coerceIn(1, Int.MAX_VALUE)
     val bgColor = when {
         isLive -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
         startCol % 3 == 0 -> Color(0xFF1A2F5A)
@@ -333,8 +337,8 @@ private fun ProgrammeBlock(
     }
     Box(
         modifier = Modifier
-            .offset { IntOffset(x = (startCol * slotW.value * density.density).toInt(), y = 0) }
-            .width(slotW * widthCols)
+            .offset { IntOffset(x = (safeStartCol * slotW.value * density.density).toInt(), y = 0) }
+            .width(slotW * safeWidthCols)
             .height(ROW_HEIGHT_DP)
             .padding(horizontal = 2.dp, vertical = 3.dp)
             .clip(RoundedCornerShape(6.dp))
