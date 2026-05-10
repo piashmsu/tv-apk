@@ -137,6 +137,8 @@ fun PlayerScreen(onBack: () -> Unit) {
         }
     }
     var isPlaying by remember { mutableStateOf(true) }
+    var isReady by remember { mutableStateOf(false) }
+    var isBuffering by remember { mutableStateOf(true) }
     var controlsVisible by remember { mutableStateOf(true) }
     var lastInteractionAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var aspectMode by remember { mutableStateOf(AspectMode.Fit) }
@@ -225,6 +227,13 @@ fun PlayerScreen(onBack: () -> Unit) {
                     lastInteractionAt = System.currentTimeMillis()
                 }
             }
+            override fun onPlaybackStateChanged(state: Int) {
+                isReady = state == Player.STATE_READY
+                isBuffering = state == Player.STATE_BUFFERING
+                if (state == Player.STATE_READY) {
+                    isBuffering = false
+                }
+            }
         }
         player.addListener(listener)
         onDispose {
@@ -289,6 +298,35 @@ fun PlayerScreen(onBack: () -> Unit) {
                 view.resizeMode = aspectMode.mode
             },
         )
+
+        if (isBuffering || !isReady) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xEE050616)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(48.dp),
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "Loading ${current.title}...",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        if (!isReady) "Preparing stream" else "Buffering...",
+                        color = Color(0xCCBFC4D6),
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            }
+        }
 
         seekIndicator?.let { (forward, _) ->
             Box(

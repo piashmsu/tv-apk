@@ -161,6 +161,50 @@ class ChannelRepository(
         }
     }
 
+    suspend fun probeOfflineOnly() = withContext(Dispatchers.IO) {
+        runCatching {
+            val allChannels = _channels.value
+            val offline = allChannels.filter { _statuses.value[it.id] == ChannelStatus.Offline }
+            if (offline.isEmpty()) {
+                _probeProgress.value = ProbeProgress.Finished(0, 0, 0)
+                DebugLog.log("Re-probe offline: no offline channels")
+                return@runCatching
+            }
+            DebugLog.log("Re-probe offline: ${offline.size} channels")
+            val total = offline.size
+            _probeProgress.value = ProbeProgress.Running(0, total)
+            val currentStatuses = _statuses.value.toMutableMap()
+            val done = AtomicInteger(0)
+
+            offline.asFlow()
+                .flatMapMerge(concurrency = 16) { ch ->
+                    flow {
+                        val status = runCatching { probeOne(ch) }
+                            .onFailure { DebugLog.log("Offline re-probe fail ${ch.name}: ${it.message}") }
+                            .getOrDefault(ChannelStatus.Offline)
+                        emit(ch.id to status)
+                    }.flowOn(Dispatchers.IO)
+                }
+                .collect { (id, status) ->
+                    currentStatuses[id] = status
+                    val n = done.incrementAndGet()
+                    runCatching { _probeProgress.value = ProbeProgress.Running(n, total) }
+                    if (n % 32 == 0 || n == total) {
+                        runCatching { _statuses.value = HashMap(currentStatuses) }
+                    }
+                }
+
+            runCatching { _statuses.value = HashMap(currentStatuses) }
+            val onlineCount = currentStatuses.count { it.value == ChannelStatus.Online }
+            val offlineCount = currentStatuses.count { it.value == ChannelStatus.Offline }
+            runCatching { _probeProgress.value = ProbeProgress.Finished(onlineCount, offlineCount, total) }
+            DebugLog.log("Offline re-probe done: $onlineCount now online, $offlineCount still offline")
+        }.onFailure { e ->
+            DebugLog.logError("probeOfflineOnly", e)
+            runCatching { _probeProgress.value = ProbeProgress.Idle }
+        }
+    }
+
     private fun probeOne(channel: Channel): ChannelStatus {
         val url = channel.streamUrl
         if (url.isBlank()) return ChannelStatus.Offline

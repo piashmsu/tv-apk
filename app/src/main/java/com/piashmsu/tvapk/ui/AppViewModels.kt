@@ -49,15 +49,7 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
 
     init {
         DebugLog.log("ViewModel init")
-        viewModelScope.launch {
-            runCatching { channelRepo.refresh() }
-            runCatching {
-                if (channelRepo.statuses.value.isEmpty()) {
-                    DebugLog.log("Auto-probe trigger from init")
-                    channelRepo.probeReachability()
-                }
-            }
-        }
+        viewModelScope.launch { runCatching { channelRepo.refresh() } }
         viewModelScope.launch { runCatching { movieRepo.refresh() } }
         viewModelScope.launch { runCatching { epgRepo.refresh() } }
     }
@@ -119,6 +111,9 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
     }
     fun probeChannels() {
         viewModelScope.launch { runCatching { channelRepo.probeReachability() } }
+    }
+    fun probeOfflineOnly() {
+        viewModelScope.launch { runCatching { channelRepo.probeOfflineOnly() } }
     }
 
     companion object {

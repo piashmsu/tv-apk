@@ -123,7 +123,7 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit, onEpgTimeline: (() -> Unit)? =
                 .padding(horizontal = 16.dp, vertical = 6.dp),
         )
 
-        ProbeBanner(probe = probe, anyProbed = anyProbed, onProbe = { vm.probeChannels() })
+        ProbeBanner(probe = probe, anyProbed = anyProbed, onProbe = { vm.probeChannels() }, onRecheckOffline = { vm.probeOfflineOnly() })
 
         TabRow(tab = tab, anyProbed = anyProbed, onTabChange = { tab = it })
 
@@ -257,7 +257,7 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit, onEpgTimeline: (() -> Unit)? =
 }
 
 @Composable
-private fun ProbeBanner(probe: ProbeProgress, anyProbed: Boolean, onProbe: () -> Unit) {
+private fun ProbeBanner(probe: ProbeProgress, anyProbed: Boolean, onProbe: () -> Unit, onRecheckOffline: (() -> Unit)? = null) {
     when (probe) {
         ProbeProgress.Idle -> if (!anyProbed) {
             Row(
@@ -314,33 +314,66 @@ private fun ProbeBanner(probe: ProbeProgress, anyProbed: Boolean, onProbe: () ->
             }
         }
         is ProbeProgress.Finished -> {
-            Row(
+            if (probe.online + probe.offline == 0) return
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0x33059669))
-                    .clickable(onClick = onProbe)
+                    .background(Color(0x33050616))
                     .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    Icons.Outlined.NetworkCheck,
-                    contentDescription = null,
-                    tint = Color(0xFF22C55E),
-                )
-                Spacer(Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Online: ${probe.online} • Offline: ${probe.offline}",
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelLarge,
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0x33059669))
+                        .clickable(onClick = onProbe)
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Outlined.NetworkCheck,
+                        contentDescription = null,
+                        tint = Color(0xFF22C55E),
                     )
-                    Text(
-                        "Tap to re-check",
-                        color = Color(0xCCBFC4D6),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Online: ${probe.online}  Offline: ${probe.offline}",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        Text(
+                            "Tap to re-check all",
+                            color = Color(0xCCBFC4D6),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                }
+                if (probe.offline > 0 && onRecheckOffline != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0x33EF4444))
+                            .clickable(onClick = onRecheckOffline)
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Outlined.Refresh,
+                            contentDescription = null,
+                            tint = Color(0xFFEF4444),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "Re-check ${probe.offline} offline only",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
                 }
             }
         }
