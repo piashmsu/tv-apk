@@ -146,21 +146,32 @@ Debug logging. Error recovery. No silent crashes.
 <p align="center">
   <table>
     <tr>
-      <td align="center"><b>Home</b></td>
-      <td align="center"><b>Live TV</b></td>
-      <td align="center"><b>EPG Timeline</b></td>
-      <td align="center"><b>Player + PiP</b></td>
-    </tr>
-    <tr>
-      <td><i>Hero • Quick Actions • Channels</i></td>
-      <td><i>Online/Offline • Groups • Search</i></td>
-      <td><i>Grid TV Guide • Now Indicator</i></td>
-      <td><i>Controls • PiP • Record • Timer</i></td>
+      <td align="center" width="33%">
+        <img src="https://raw.githubusercontent.com/piashmsuf-eng/tv-apk/devin/1777890984-tv-apk-initial/1.jpg" width="100%" alt="Home Screen" />
+        <br><b>🏠 Home Screen</b><br>
+        <sub>Hero • Quick Actions • Channels • Movies</sub>
+      </td>
+      <td align="center" width="33%">
+        <img src="https://raw.githubusercontent.com/piashmsuf-eng/tv-apk/devin/1777890984-tv-apk-initial/2.jpg" width="100%" alt="Live TV" />
+        <br><b>📺 Live TV + EPG</b><br>
+        <sub>Online/Offline • Groups • Search • EPG Guide</sub>
+      </td>
+      <td align="center" width="33%">
+        <img src="https://raw.githubusercontent.com/piashmsuf-eng/tv-apk/devin/1777890984-tv-apk-initial/3.jpg" width="100%" alt="Player" />
+        <br><b>🎬 Video Player</b><br>
+        <sub>Controls • PiP • Record • Sleep Timer</sub>
+      </td>
     </tr>
   </table>
 </p>
 
-> 📸 *Screenshots coming soon — or run the app and take yours!*
+---
+
+## 🎯 How to Upload Screenshots
+Upload your 3 screenshots to the repo root:
+1. Go to your repo → **Add file** → **Upload files**
+2. Name them exactly: `1.jpg`, `2.jpg`, `3.jpg`
+3. Commit to the `devin/1777890984-tv-apk-initial` branch
 
 ---
 
