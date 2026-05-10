@@ -46,6 +46,7 @@ import com.piashmsu.tvapk.data.PlaybackTargetHolder
 import com.piashmsu.tvapk.ui.screens.HomeScreen
 import com.piashmsu.tvapk.ui.screens.LiveTvScreen
 import com.piashmsu.tvapk.ui.screens.MoviesScreen
+import com.piashmsu.tvapk.ui.screens.EpgTimelineScreen
 import com.piashmsu.tvapk.ui.screens.PlayerScreen
 import com.piashmsu.tvapk.ui.screens.SearchScreen
 import com.piashmsu.tvapk.ui.screens.SettingsScreen
@@ -90,7 +91,12 @@ fun TvApkRoot() {
                         onTabRequest = { route -> nav.tabNavigate(route) },
                     )
                 }
-                composable(Tab.Live.route) { LiveTvScreen(onChannelTap = openChannel) }
+                composable(Tab.Live.route) {
+                    LiveTvScreen(
+                        onChannelTap = openChannel,
+                        onEpgTimeline = { nav.navigate("epg_timeline") },
+                    )
+                }
                 composable(Tab.Movies.route) { MoviesScreen(onMovieTap = openMovie) }
                 composable(Tab.Search.route) {
                     SearchScreen(onChannelTap = openChannel, onMovieTap = openMovie)
@@ -98,6 +104,12 @@ fun TvApkRoot() {
                 composable(Tab.Settings.route) { SettingsScreen() }
                 composable("player") {
                     PlayerScreen(onBack = { nav.popBackStack() })
+                }
+                composable("epg_timeline") {
+                    EpgTimelineScreen(
+                        onBack = { nav.popBackStack() },
+                        onChannelTap = openChannel,
+                    )
                 }
             }
         }

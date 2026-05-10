@@ -16,6 +16,7 @@ import com.piashmsu.tvapk.work.PlaylistRefreshWorker
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.piashmsu.tvapk.DebugLog
 
 class AppViewModel(private val container: AppContainer) : ViewModel() {
 
@@ -47,14 +48,10 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
     val probeProgress = channelRepo.probeProgress
 
     init {
-        viewModelScope.launch {
-            channelRepo.refresh()
-            if (channelRepo.statuses.value.isEmpty()) {
-                channelRepo.probeReachability()
-            }
-        }
-        viewModelScope.launch { movieRepo.refresh() }
-        viewModelScope.launch { epgRepo.refresh() }
+        DebugLog.log("ViewModel init")
+        viewModelScope.launch { runCatching { channelRepo.refresh() } }
+        viewModelScope.launch { runCatching { movieRepo.refresh() } }
+        viewModelScope.launch { runCatching { epgRepo.refresh() } }
     }
 
     fun saveMovieCatalogUrl(url: String) {
@@ -66,25 +63,25 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
 
     fun upsertPlaylistSource(source: PlaylistSource) {
         viewModelScope.launch {
-            prefs.upsertPlaylistSource(source)
-            channelRepo.refresh()
-            epgRepo.refresh()
+            runCatching { prefs.upsertPlaylistSource(source) }
+            runCatching { channelRepo.refresh() }
+            runCatching { epgRepo.refresh() }
         }
     }
 
     fun togglePlaylistEnabled(source: PlaylistSource) {
         viewModelScope.launch {
-            prefs.upsertPlaylistSource(source.copy(enabled = !source.enabled))
-            channelRepo.refresh()
-            epgRepo.refresh()
+            runCatching { prefs.upsertPlaylistSource(source.copy(enabled = !source.enabled)) }
+            runCatching { channelRepo.refresh() }
+            runCatching { epgRepo.refresh() }
         }
     }
 
     fun removePlaylistSource(id: String) {
         viewModelScope.launch {
-            prefs.removePlaylistSource(id)
-            channelRepo.refresh()
-            epgRepo.refresh()
+            runCatching { prefs.removePlaylistSource(id) }
+            runCatching { channelRepo.refresh() }
+            runCatching { epgRepo.refresh() }
         }
     }
 
@@ -114,6 +111,9 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
     }
     fun probeChannels() {
         viewModelScope.launch { runCatching { channelRepo.probeReachability() } }
+    }
+    fun probeOfflineOnly() {
+        viewModelScope.launch { runCatching { channelRepo.probeOfflineOnly() } }
     }
 
     companion object {

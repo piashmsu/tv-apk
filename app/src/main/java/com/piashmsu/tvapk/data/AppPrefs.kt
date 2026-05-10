@@ -115,12 +115,38 @@ class AppPrefs(private val context: Context) {
             writeSources(
                 listOf(
                     PlaylistSource(
+                        id = "bangladesh-tv",
+                        name = "Bangladesh TV",
+                        url = "https://iptv-org.github.io/iptv/countries/bd.m3u",
+                        enabled = true,
+                        epgUrl = "https://iptv-org.github.io/epg/guides/bd.xml",
+                    ),
+                    PlaylistSource(
+                        id = "india-tv",
+                        name = "India TV",
+                        url = "https://iptv-org.github.io/iptv/countries/in.m3u",
+                        enabled = true,
+                        epgUrl = "https://iptv-org.github.io/epg/guides/in.xml",
+                    ),
+                    PlaylistSource(
+                        id = "hollywood-movies",
+                        name = "Hollywood Movies",
+                        url = "https://iptv-org.github.io/iptv/categories/movies.m3u",
+                        enabled = true,
+                    ),
+                    PlaylistSource(
+                        id = "world-sports",
+                        name = "World Sports",
+                        url = "https://iptv-org.github.io/iptv/categories/sports.m3u",
+                        enabled = true,
+                    ),
+                    PlaylistSource(
                         id = "world-tv-default",
-                        name = "World TV (auto-updated)",
+                        name = "World TV All",
                         url = "https://iptv-org.github.io/iptv/index.m3u",
                         enabled = true,
                         epgUrl = "https://iptv-org.github.io/epg/guides/us.xml",
-                    )
+                    ),
                 )
             )
         }

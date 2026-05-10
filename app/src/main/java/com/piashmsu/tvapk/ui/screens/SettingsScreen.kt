@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.piashmsu.tvapk.R
+import com.piashmsu.tvapk.DebugLog
 import com.piashmsu.tvapk.data.PlaylistSource
 import com.piashmsu.tvapk.data.RefreshInterval
 import com.piashmsu.tvapk.ui.AppViewModel
@@ -101,7 +102,6 @@ fun SettingsScreen() {
                     enabled = true,
                 )
             )
-            vm.refreshChannels()
         }
     }
 
@@ -247,6 +247,44 @@ fun SettingsScreen() {
                 AboutRow("Player", "Media3 / ExoPlayer 1.4.1")
                 AboutRow("Streaming", "HLS • DASH • SmoothStreaming • RTSP • Progressive")
                 AboutRow("Live features", "EPG • Catch-up • Recording • Favorites")
+            }
+        }
+
+        item {
+            var showLog by remember { mutableStateOf(false) }
+            Card("Debug Logs") {
+                Text(
+                    "View crash and error logs. Shows why app closed unexpectedly.",
+                    color = Color(0xCCBFC4D6),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(
+                        onClick = { showLog = !showLog },
+                        shape = RoundedCornerShape(50),
+                    ) {
+                        Text(if (showLog) "Hide logs" else "View logs", style = MaterialTheme.typography.labelLarge)
+                    }
+                    FilledTonalButton(
+                        onClick = {
+                            DebugLog.clear()
+                            showLog = false
+                        },
+                        shape = RoundedCornerShape(50),
+                    ) {
+                        Text("Clear", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+                if (showLog) {
+                    Spacer(Modifier.height(10.dp))
+                    val logText = remember(showLog) { DebugLog.getLogText() }
+                    Text(
+                        logText,
+                        color = Color(0xFF22C55E),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
         }
 

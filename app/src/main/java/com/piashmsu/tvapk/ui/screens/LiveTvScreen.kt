@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.NetworkCheck
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -63,7 +65,7 @@ private const val FAVORITES_GROUP = "★ Favorites"
 private enum class LiveTab { Online, Offline, All }
 
 @Composable
-fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
+fun LiveTvScreen(onChannelTap: (Channel) -> Unit, onEpgTimeline: (() -> Unit)? = null) {
     val vm: AppViewModel = viewModel(factory = AppViewModel.Factory)
     val channels by vm.channels.collectAsState()
     val state by vm.channelState.collectAsState()
@@ -87,6 +89,7 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
             isRefreshing = state is LoadState.Loading,
             onProbe = { vm.probeChannels() },
             isProbing = probe is ProbeProgress.Running,
+            onEpg = onEpgTimeline,
         )
 
         if (sources.isEmpty()) {
@@ -121,35 +124,39 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 6.dp),
         )
 
-        ProbeBanner(probe = probe, anyProbed = anyProbed, onProbe = { vm.probeChannels() })
+        ProbeBanner(probe = probe, anyProbed = anyProbed, onProbe = { vm.probeChannels() }, onRecheckOffline = { vm.probeOfflineOnly() })
 
         TabRow(tab = tab, anyProbed = anyProbed, onTabChange = { tab = it })
 
         val baseGroups: List<Category<Channel>> by remember(channels, query, statuses, tab) {
             derivedStateOf {
-                vm.channelRepo.groupedByCategory(
-                    query = query,
-                    hideOffline = anyProbed && tab == LiveTab.Online,
-                    onlyOffline = anyProbed && tab == LiveTab.Offline,
-                )
+                runCatching {
+                    vm.channelRepo.groupedByCategory(
+                        query = query,
+                        hideOffline = anyProbed && tab == LiveTab.Online,
+                        onlyOffline = anyProbed && tab == LiveTab.Offline,
+                    )
+                }.getOrDefault(emptyList())
             }
         }
         val favCategory by remember(channels, favorites, query, statuses, tab) {
             derivedStateOf {
-                if (tab == LiveTab.Offline) return@derivedStateOf null
-                val favList = channels.asSequence()
-                    .filter { it.id in favorites }
-                    .filter {
-                        val matches = query.isBlank() ||
-                            it.name.contains(query, true) ||
-                            it.group.contains(query, true)
-                        if (!matches) return@filter false
-                        if (anyProbed && tab == LiveTab.Online) statuses[it.id] != ChannelStatus.Offline
-                        else true
-                    }
-                    .sortedBy { it.name }
-                    .toList()
-                if (favList.isEmpty()) null else Category(FAVORITES_GROUP, favList)
+                runCatching {
+                    if (tab == LiveTab.Offline) return@derivedStateOf null
+                    val favList = channels.asSequence()
+                        .filter { it.id in favorites }
+                        .filter {
+                            val matches = query.isBlank() ||
+                                it.name.contains(query, true) ||
+                                it.group.contains(query, true)
+                            if (!matches) return@filter false
+                            if (anyProbed && tab == LiveTab.Online) statuses[it.id] != ChannelStatus.Offline
+                            else true
+                        }
+                        .sortedBy { it.name }
+                        .toList()
+                    if (favList.isEmpty()) null else Category(FAVORITES_GROUP, favList)
+                }.getOrNull()
             }
         }
         val groups = listOfNotNull(favCategory) + baseGroups
@@ -251,7 +258,7 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
 }
 
 @Composable
-private fun ProbeBanner(probe: ProbeProgress, anyProbed: Boolean, onProbe: () -> Unit) {
+private fun ProbeBanner(probe: ProbeProgress, anyProbed: Boolean, onProbe: () -> Unit, onRecheckOffline: (() -> Unit)? = null) {
     when (probe) {
         ProbeProgress.Idle -> if (!anyProbed) {
             Row(
@@ -308,33 +315,66 @@ private fun ProbeBanner(probe: ProbeProgress, anyProbed: Boolean, onProbe: () ->
             }
         }
         is ProbeProgress.Finished -> {
-            Row(
+            if (probe.online + probe.offline == 0) return
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0x33059669))
-                    .clickable(onClick = onProbe)
+                    .background(Color(0x33050616))
                     .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    Icons.Outlined.NetworkCheck,
-                    contentDescription = null,
-                    tint = Color(0xFF22C55E),
-                )
-                Spacer(Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Online: ${probe.online} • Offline: ${probe.offline}",
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelLarge,
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0x33059669))
+                        .clickable(onClick = onProbe)
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Outlined.NetworkCheck,
+                        contentDescription = null,
+                        tint = Color(0xFF22C55E),
                     )
-                    Text(
-                        "Tap to re-check",
-                        color = Color(0xCCBFC4D6),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Online: ${probe.online}  Offline: ${probe.offline}",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        Text(
+                            "Tap to re-check all",
+                            color = Color(0xCCBFC4D6),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                }
+                if (probe.offline > 0 && onRecheckOffline != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0x33EF4444))
+                            .clickable(onClick = onRecheckOffline)
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Outlined.Refresh,
+                            contentDescription = null,
+                            tint = Color(0xFFEF4444),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "Re-check ${probe.offline} offline only",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
                 }
             }
         }
@@ -390,6 +430,7 @@ internal fun TopRow(
     isRefreshing: Boolean,
     onProbe: (() -> Unit)? = null,
     isProbing: Boolean = false,
+    onEpg: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -400,6 +441,23 @@ internal fun TopRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(title, color = Color.White, style = MaterialTheme.typography.headlineLarge)
             Text(subtitle, color = Color(0xCCBFC4D6), style = MaterialTheme.typography.labelMedium)
+        }
+        if (onEpg != null) {
+            IconButton(onClick = onEpg) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x33059669)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Outlined.CalendarToday,
+                        contentDescription = "EPG Timeline",
+                        tint = Color(0xFF22C55E),
+                    )
+                }
+            }
         }
         if (onProbe != null) {
             IconButton(onClick = onProbe, enabled = !isProbing) {

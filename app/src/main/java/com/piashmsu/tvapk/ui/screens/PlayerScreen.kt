@@ -2,6 +2,7 @@ package com.piashmsu.tvapk.ui.screens
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -28,11 +29,13 @@ import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material.icons.outlined.FastRewind
 import androidx.compose.material.icons.outlined.FiberManualRecord
 import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PictureInPicture
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalIconButton
@@ -69,6 +72,7 @@ import androidx.media3.ui.PlayerView
 import com.piashmsu.tvapk.data.PlaybackTarget
 import com.piashmsu.tvapk.data.PlaybackTargetHolder
 import com.piashmsu.tvapk.data.RecentChannel
+import com.piashmsu.tvapk.MainActivity
 import com.piashmsu.tvapk.player.buildPlayerForUrl
 import com.piashmsu.tvapk.record.RecordingArgs
 import com.piashmsu.tvapk.record.RecordingService
@@ -134,6 +138,8 @@ fun PlayerScreen(onBack: () -> Unit) {
         }
     }
     var isPlaying by remember { mutableStateOf(true) }
+    var isReady by remember { mutableStateOf(false) }
+    var isBuffering by remember { mutableStateOf(true) }
     var controlsVisible by remember { mutableStateOf(true) }
     var lastInteractionAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var aspectMode by remember { mutableStateOf(AspectMode.Fit) }
@@ -155,6 +161,15 @@ fun PlayerScreen(onBack: () -> Unit) {
                     timestamp = System.currentTimeMillis(),
                 )
             )
+        }
+    }
+
+    LaunchedEffect(isPlaying, current.title) {
+        val activity = context as? MainActivity ?: return@LaunchedEffect
+        if (isPlaying) {
+            activity.showPlaybackNotification(current.title, true)
+        } else {
+            activity.showPlaybackNotification(current.title, false)
         }
     }
 
@@ -194,6 +209,14 @@ fun PlayerScreen(onBack: () -> Unit) {
         }
     }
 
+    DisposableEffect(Unit) {
+        MainActivity.isPlayerActive = true
+        onDispose {
+            MainActivity.isPlayerActive = false
+            (context as? MainActivity)?.cancelPlaybackNotification()
+        }
+    }
+
     EnterImmersive()
 
     DisposableEffect(player) {
@@ -203,6 +226,13 @@ fun PlayerScreen(onBack: () -> Unit) {
                 if (!playing) {
                     controlsVisible = true
                     lastInteractionAt = System.currentTimeMillis()
+                }
+            }
+            override fun onPlaybackStateChanged(state: Int) {
+                isReady = state == Player.STATE_READY
+                isBuffering = state == Player.STATE_BUFFERING
+                if (state == Player.STATE_READY) {
+                    isBuffering = false
                 }
             }
         }
@@ -222,6 +252,12 @@ fun PlayerScreen(onBack: () -> Unit) {
     }
 
     val recordingState by RecordingService.state.collectAsState()
+
+    val handleBack: () -> Unit = {
+        onBack()
+    }
+
+    BackHandler(onBack = handleBack)
 
     fun touch() {
         controlsVisible = true
@@ -263,6 +299,35 @@ fun PlayerScreen(onBack: () -> Unit) {
                 view.resizeMode = aspectMode.mode
             },
         )
+
+        if (isBuffering || !isReady) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xEE050616)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(48.dp),
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "Loading ${current.title}...",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        if (!isReady) "Preparing stream" else "Buffering...",
+                        color = Color(0xCCBFC4D6),
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            }
+        }
 
         seekIndicator?.let { (forward, _) ->
             Box(
@@ -308,7 +373,7 @@ fun PlayerScreen(onBack: () -> Unit) {
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    FilledTonalIconButton(onClick = onBack) {
+                    FilledTonalIconButton(onClick = handleBack) {
                         Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
                     }
                     Spacer(Modifier.size(10.dp))
@@ -377,6 +442,19 @@ fun PlayerScreen(onBack: () -> Unit) {
                         ),
                     ) {
                         Icon(Icons.Outlined.AspectRatio, contentDescription = "Aspect ratio")
+                    }
+                    Spacer(Modifier.size(6.dp))
+                    FilledTonalIconButton(
+                        onClick = {
+                            MainActivity.pipAware?.invoke(true)
+                            touch()
+                        },
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = Color(0x99000000),
+                            contentColor = Color.White,
+                        ),
+                    ) {
+                        Icon(Icons.Outlined.PictureInPicture, contentDescription = "Picture in Picture")
                     }
                     Spacer(Modifier.size(6.dp))
 
